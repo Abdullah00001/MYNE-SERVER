@@ -1,0 +1,1 @@
+import { BaseDTO } from '@/core/base_classes/dto.base'
