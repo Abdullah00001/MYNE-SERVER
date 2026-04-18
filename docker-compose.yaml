@@ -4,7 +4,7 @@ services:
     container_name: myne_redis_container
     command: redis-server --requirepass myStrongRedisPassword
     ports:
-      - 6379:6379
+      - 6387:6379
     networks:
       - myne_backend_network
     volumes:
@@ -19,7 +19,7 @@ services:
       - HTTP_USER=admin
       - HTTP_PASSWORD=admin
     ports:
-      - 8081:8081
+      - 8087:8081
     networks:
       - myne_backend_network
     depends_on:
@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: myne_server_container
     ports:
-      - 5000:5000
+      - 5022:5000
     networks:
       - myne_backend_network
     volumes:
@@ -45,7 +45,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: myne_ai_server_container
     ports:
-      - "8000:8000"
+      - "8022:8000"
     env_file:
       - ./ai-server/.env
     volumes:
