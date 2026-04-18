@@ -6,7 +6,8 @@ import UserCollection from '@/modules/userBag/userBag.model';
 import { PublishStatus } from '@/modules/userBag/userBag.types';
 import { PriceSyncQueue } from '@/queue/queues/priceSync.queue';
 
-const priceSyncQueue = container.resolve(PriceSyncQueue);
+const getPriceSyncQueue = (): PriceSyncQueue =>
+  container.resolve(PriceSyncQueue);
 
 const performPriceUpdate = async (): Promise<void> => {
   try {
@@ -27,7 +28,9 @@ const performPriceUpdate = async (): Promise<void> => {
       return;
     }
 
-    logger.info(`[PriceUpdate] Starting ${updateType} price update for all published bags`);
+    logger.info(
+      `[PriceUpdate] Starting ${updateType} price update for all published bags`
+    );
 
     // Get all published bags with populated brand and model
     const publishedBags = await UserCollection.find({
@@ -35,14 +38,20 @@ const performPriceUpdate = async (): Promise<void> => {
     })
       .populate('brandId', 'brandName')
       .populate('modelId', 'modelName')
-      .select('_id brandId modelId bagColor condition leatherType hardwareColor size');
+      .select(
+        '_id brandId modelId bagColor condition leatherType hardwareColor size'
+      );
 
     if (publishedBags.length === 0) {
       logger.info('[PriceUpdate] No published bags found');
       return;
     }
 
-    logger.info(`[PriceUpdate] Found ${publishedBags.length} published bags to update`);
+    logger.info(
+      `[PriceUpdate] Found ${publishedBags.length} published bags to update`
+    );
+
+    const priceSyncQueue = getPriceSyncQueue();
 
     // Add jobs to queue
     const jobPromises = publishedBags.map(async (bag) => {
@@ -63,9 +72,14 @@ const performPriceUpdate = async (): Promise<void> => {
 
     await Promise.all(jobPromises);
 
-    logger.info(`[PriceUpdate] Successfully queued ${publishedBags.length} price update jobs`);
+    logger.info(
+      `[PriceUpdate] Successfully queued ${publishedBags.length} price update jobs`
+    );
   } catch (error) {
-    logger.error('[PriceUpdate] Job failed:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error(
+      '[PriceUpdate] Job failed:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
     throw error;
   }
 };
@@ -79,4 +93,3 @@ schedule('0 0 * * *', () => {
     );
   });
 });
-
