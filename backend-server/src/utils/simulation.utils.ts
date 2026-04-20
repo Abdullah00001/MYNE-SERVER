@@ -121,7 +121,7 @@ export class Simulation {
     }
 
     const randomMonth = Math.floor(Math.random() * 12);
-    const productionYear = new Date(randomYear, randomMonth, 1);
+    // const productionYear = new Date(randomYear, randomMonth, 1);
 
     // Return raw data as if from AI API
     return {

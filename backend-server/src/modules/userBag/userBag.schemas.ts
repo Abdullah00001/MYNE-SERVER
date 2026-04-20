@@ -55,19 +55,19 @@ export const CreateCollectionSchema = z.object({
     }),
 
   // Production year - COERCED from string to number for form-data
-  productionYear: z.coerce
-    .number({
-      error: 'Production year must be a number',
-    })
-    .int({
-      error: 'Production year must be an integer',
-    })
-    .min(1900, {
-      error: 'Production year must be 1900 or later',
-    })
-    .max(new Date().getFullYear() + 1, {
-      error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
-    }),
+  // productionYear: z.coerce
+  //   .number({
+  //     error: 'Production year must be a number',
+  //   })
+  //   .int({
+  //     error: 'Production year must be an integer',
+  //   })
+  //   .min(1900, {
+  //     error: 'Production year must be 1900 or later',
+  //   })
+  //   .max(new Date().getFullYear() + 1, {
+  //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
+  //   }),
 
   // Condition of the bag
   condition: z
@@ -138,17 +138,7 @@ export const CreateCollectionSchema = z.object({
     }),
 
   // Optional fields - also coerced if provided
-  waitingTimeInDays: z.coerce
-    .number({
-      error: 'Waiting time must be a number',
-    })
-    .int({
-      error: 'Waiting time must be an integer',
-    })
-    .min(0, {
-      error: 'Waiting time cannot be negative',
-    })
-    .optional(),
+  waitingTime: z.string().optional(),
 
   notes: z.string().optional(),
   publishStatus: z.enum(PublishStatus),
@@ -200,19 +190,19 @@ export const baseUpdateSchema = z.object({
     }),
 
   // Production year - with coercion for form-data
-  productionYear: z.coerce
-    .number({
-      error: 'Production year must be a number',
-    })
-    .int({
-      error: 'Production year must be an integer',
-    })
-    .min(1900, {
-      error: 'Production year must be 1900 or later',
-    })
-    .max(new Date().getFullYear() + 1, {
-      error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
-    }),
+  // productionYear: z.coerce
+  //   .number({
+  //     error: 'Production year must be a number',
+  //   })
+  //   .int({
+  //     error: 'Production year must be an integer',
+  //   })
+  //   .min(1900, {
+  //     error: 'Production year must be 1900 or later',
+  //   })
+  //   .max(new Date().getFullYear() + 1, {
+  //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
+  //   }),
 
   // Condition
   condition: z
@@ -289,8 +279,8 @@ export const baseUpdateSchema = z.object({
   }),
 
   // Optional fields (can be null or undefined)
-  waitingTimeInDays: z
-    .union([z.coerce.number().int().min(0), z.null()])
+  waitingTime: z
+    .string()
     .optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
@@ -382,7 +372,7 @@ export const CollectionQuerySchema = z.object({
     .optional(),
 
   // Production year filter
-  productionYear: z.coerce.number().int().min(1900).optional(),
+  // productionYear: z.coerce.number().int().min(1900).optional(),
 
   // Purchase year filter
   purchaseYear: z.coerce.number().int().min(1900).optional(),
@@ -480,19 +470,19 @@ export const createBagStepOneSchema = z.object({
     }),
 
   // Production year - COERCED from string to number for form-data
-  productionYear: z.coerce
-    .number({
-      error: 'Production year must be a number',
-    })
-    .int({
-      error: 'Production year must be an integer',
-    })
-    .min(1900, {
-      error: 'Production year must be 1900 or later',
-    })
-    .max(new Date().getFullYear() + 1, {
-      error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
-    }),
+  // productionYear: z.coerce
+  //   .number({
+  //     error: 'Production year must be a number',
+  //   })
+  //   .int({
+  //     error: 'Production year must be an integer',
+  //   })
+  //   .min(1900, {
+  //     error: 'Production year must be 1900 or later',
+  //   })
+  //   .max(new Date().getFullYear() + 1, {
+  //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
+  //   }),
 
   leatherType: z
     .string({
@@ -589,8 +579,8 @@ export const createBagStepThreeSchema = z.object({
 export type TCreateBagStepThree = z.infer<typeof createBagStepThreeSchema>;
 
 export const createBagStepFourSchema = z.object({
-  waitingTimeInDays: z
-    .union([z.coerce.number().int().min(0), z.null()])
+  waitingTime: z
+    .string()
     .optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),

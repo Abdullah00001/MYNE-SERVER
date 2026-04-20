@@ -72,7 +72,7 @@ export class AdminBagService {
         size,
         condition,
         image: url,
-        productionYear: priceData.productionYear,
+        // productionYear: priceData.productionYear,
         priceStatus,
         user: new Types.ObjectId(user._id as string),
       });

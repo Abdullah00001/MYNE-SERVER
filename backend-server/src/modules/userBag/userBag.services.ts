@@ -603,7 +603,7 @@ export class UserBagService {
         leatherType,
         limit: queryLimit, // queryLimit is alias of limit
         page: queryPage, // queryPage is alias of page
-        productionYear,
+        // productionYear,
         purchaseYear,
         sortByCreatedAt,
         sortByTrending,
@@ -627,9 +627,9 @@ export class UserBagService {
         matchStage.leatherType = leatherType;
       }
 
-      if (productionYear) {
-        matchStage.productionYear = productionYear;
-      }
+      // if (productionYear) {
+      //   matchStage.productionYear = productionYear;
+      // }
 
       if (purchaseYear) {
         matchStage.$expr = {
@@ -813,8 +813,8 @@ export class UserBagService {
 
         if (brand) params.set('brand', brand);
         if (leatherType) params.set('leatherType', leatherType);
-        if (productionYear)
-          params.set('productionYear', productionYear.toString());
+        // if (productionYear)
+        //   params.set('productionYear', productionYear.toString());
         if (purchaseYear) params.set('purchaseYear', purchaseYear.toString());
         if (valueRangeMin !== undefined)
           params.set('valueRangeMin', valueRangeMin.toString());

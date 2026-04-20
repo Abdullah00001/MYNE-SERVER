@@ -44,7 +44,7 @@ export interface IUserBag {
   hardwareColor: string;
   size: string;
   priceStatus: TAdminBagPriceStatus;
-  productionYear: number;
+  // productionYear: number;
   condition: string;
   purchasePrice: number;
   sellerName: string;
@@ -52,7 +52,7 @@ export interface IUserBag {
   purchaseLocation: string;
   purchaseDate: Date;
   purchaseType: string;
-  waitingTimeInDays?: number | null;
+  waitingTime?: string | null;
   notes?: string | null;
   receipt?: string | null;
   isArchived: boolean;
