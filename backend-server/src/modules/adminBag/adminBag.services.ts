@@ -4,6 +4,7 @@ import { JwtPayload } from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { injectable } from 'tsyringe';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 
 import { CreateAdminBagDTO } from '@/modules/adminBag/adminBag.dto';
 import AdminBag from '@/modules/adminBag/adminBag.model';
@@ -15,17 +16,19 @@ import {
 import { IUser } from '@/modules/auth/auth.types';
 import { Role } from '@/types/jwt.types';
 import { S3Utils } from '@/utils/s3.utils';
-import { Simulation } from '@/utils/simulation.utils';
 import { SystemUtils } from '@/utils/system.utils';
 import {
   TCreateAdminBagPayload,
   TUpdateAdminBagPayload,
 } from '@/modules/adminBag/adminBag.schemas';
+import { env } from '@/env';
+import {
+  Currency,
+} from '@/modules/adminBag/adminBag.types';
 
 @injectable()
 export class AdminBagService {
   constructor(
-    private readonly simulation: Simulation,
     private readonly s3Utils: S3Utils,
     private readonly systemUtils: SystemUtils
   ) {}
@@ -52,11 +55,26 @@ export class AdminBagService {
     const mimeType = extname(filePath);
     const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
     try {
-      const priceData = this.simulation.simulateRealisticAIAnalysis();
+      const plainResponse = await axios.post(
+        `${env.AI_SERVER_URL}/bags/price`,
+        {
+          brand: bagBrand,
+          model: bagModel,
+          color: bagColor,
+          condition: condition,
+          leather: leatherType,
+          hardware: hardwareColor,
+          size: size,
+        }
+      );
+      const aiData = plainResponse.data?.data;
+      const currency: Currency = aiData?.currency ?? null;
       const priceStatus = {
-        currentValue: priceData.currentValue,
-        changePercentage: priceData.changePercentage,
-        trend: priceData.trend,
+          trend: aiData?.trend ?? null,
+          changePercentage: aiData?.change_percentage ?? null,
+          currentValue: aiData?.current_value ?? null,
+          currency,
+          fetchedAt: new Date().toISOString(),
       };
       const url = await this.s3Utils.singleUpload({
         filePath,
