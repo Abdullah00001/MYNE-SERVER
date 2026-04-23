@@ -151,10 +151,17 @@ RULES:
 - isHSS: true only if BOTH two-tone leather AND contrasting stitching visible
 - Never use "/" in detectedColor — use secondaryColor field instead
 - "Not visible" for any feature that cannot be determined.
+- imageSearchQuery format rules:
+  Standard bag: "{Brand} {Model} {Size} {Variant} {Color} {Leather} {Hardware}"
+  Bi-color bag: "{Brand} {Model} {Size}HSS bicolor {PrimaryColor} {SecondaryColor}"
+  HSS bag: "{Brand} {Model} {Size} HSS special order"
+  Special Order: "{Brand} {Model} {Size} HSS special order {Color}"
+  Exotic leather: "{Brand} {Model} {Size} {ExoticLeather} {Color}"
+  Never put two colors side by side without "bicolor" between them.
 
 Return ONLY this JSON shape:
 {"matches":[
-  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":["Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier Bi color Ultra Violet and Bleu Encre Epsom Palladium resale 2025"},
+  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":["Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
   {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
   {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
   {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."}
@@ -169,7 +176,7 @@ async def identify_bag(photos: list, photo_mimes: list):
             "type": "image_url",
             "image_url": {
                 "url": f"data:{mime};base64,{b64}",
-                "detail": "high"
+                "detail": "auto"
             }
         }
         for b64, mime in zip(photos, photo_mimes)
@@ -186,13 +193,13 @@ async def identify_bag(photos: list, photo_mimes: list):
             },
             json={
                 "model": "gpt-4o",
-                "max_tokens": 2000,
+                "max_tokens": 3000,
                 "temperature": 0.2,
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a luxury goods cataloguing assistant. Your job is to extract and classify product attributes from bag photos for inventory and valuation purposes. Always return valid JSON only."
+                        "content": "You are a luxury goods cataloguing assistant specializing in product classification for insurance and resale inventory purposes. Use this reference knowledge for bag attribute extraction:\n\n{KNOWLEDGE_BASE}\n\nAlways return valid JSON only."
                     },
                     {
                         "role": "user",
