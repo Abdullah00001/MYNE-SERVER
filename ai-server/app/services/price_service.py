@@ -100,7 +100,12 @@ Return ONLY the JSON object."""
         res.raise_for_status()
         data = res.json()
         text = data["choices"][0]["message"]["content"].strip()
-        parsed = json.loads(text)
+        try:
+            parsed = json.loads(text)
+        except:
+            return {"current_value": 0, "currency": "EUR", "trend": "stable",
+                    "change_percentage": 0, "price_range": {"min": 0, "max": 0},
+                    "source": "error", "sample_count": 0}
 
         # normalize to your existing structure
         return {
@@ -206,15 +211,11 @@ Return ONLY JSON:
 
 
 async def fetch_fresh_price(
-    brand: str,
-    model: str,
-    color: str,
-    condition: str,
-    leather: str = "",
-    hardware: str = "",
-    size: str = "",
-    special_variant: str = "Standard",
-    stamp_year: str = ""
+    brand, model, color, condition,
+    leather="", hardware="", size="",
+    special_variant="Standard", stamp_year="",
+    is_bicolor=False, is_hss=False,        # ← add these
+    secondary_color=""                      # ← add this
 ) -> dict:
 
     query = f"{brand} {model} {size} {leather} {color} bag price"

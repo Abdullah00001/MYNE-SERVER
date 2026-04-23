@@ -199,7 +199,7 @@ async def identify_bag(photos: list, photo_mimes: list):
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a luxury goods cataloguing assistant specializing in product classification for insurance and resale inventory purposes. Use this reference knowledge for bag attribute extraction:\n\n{KNOWLEDGE_BASE}\n\nAlways return valid JSON only."
+                        "content": f"You are a luxury goods cataloguing assistant specializing in product classification for insurance and resale inventory purposes. Use this reference knowledge for bag attribute extraction:\n\n{KNOWLEDGE_BASE}\n\nAlways return valid JSON only."
                     },
                     {
                         "role": "user",
