@@ -30,7 +30,7 @@ export const CreateCollectionSchema = z.object({
       error: 'Bag color cannot be empty',
     }),
 
-  leatherType: z
+  material: z
     .string({
       error: 'Leather type is required',
     })
@@ -156,7 +156,7 @@ export const baseUpdateSchema = z.object({
       error: 'Bag color cannot be empty',
     }),
 
-  leatherType: z
+  material: z
     .string({
       error: 'Leather type must be a string',
     })
@@ -279,9 +279,7 @@ export const baseUpdateSchema = z.object({
   }),
 
   // Optional fields (can be null or undefined)
-  waitingTime: z
-    .string()
-    .optional(),
+  waitingTime: z.string().optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
   publishStatus: z.enum(PublishStatus),
@@ -382,7 +380,7 @@ export const CollectionQuerySchema = z.object({
   valueRangeMax: z.coerce.number().min(0).optional(),
 
   // Leather type filter
-  leatherType: z.string().optional(),
+  material: z.string().optional(),
 
   // Sort by created date (1 for ascending, -1 for descending)
   sortByCreatedAt: z
@@ -484,7 +482,7 @@ export const createBagStepOneSchema = z.object({
   //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
   //   }),
 
-  leatherType: z
+  material: z
     .string({
       error: 'Leather type is required',
     })
@@ -579,9 +577,7 @@ export const createBagStepThreeSchema = z.object({
 export type TCreateBagStepThree = z.infer<typeof createBagStepThreeSchema>;
 
 export const createBagStepFourSchema = z.object({
-  waitingTime: z
-    .string()
-    .optional(),
+  waitingTime: z.string().optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
 });

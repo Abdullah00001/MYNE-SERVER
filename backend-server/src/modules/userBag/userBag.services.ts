@@ -387,7 +387,7 @@ export class UserBagService {
             model: (collection.modelId as IModel).modelName,
             color: collection.bagColor,
             condition: collection.condition,
-            leather: collection.leatherType,
+            leather: collection.material,
             hardware: collection.hardwareColor,
             size: collection.size,
           }
@@ -600,7 +600,7 @@ export class UserBagService {
     try {
       const {
         brand,
-        leatherType,
+        material,
         limit: queryLimit, // queryLimit is alias of limit
         page: queryPage, // queryPage is alias of page
         // productionYear,
@@ -623,8 +623,8 @@ export class UserBagService {
         matchStage.brandId = new Types.ObjectId(brand);
       }
 
-      if (leatherType) {
-        matchStage.leatherType = leatherType;
+      if (material) {
+        matchStage.material = material;
       }
 
       // if (productionYear) {
@@ -812,7 +812,7 @@ export class UserBagService {
         params.set('limit', limit.toString());
 
         if (brand) params.set('brand', brand);
-        if (leatherType) params.set('leatherType', leatherType);
+        if (material) params.set('material', material);
         // if (productionYear)
         //   params.set('productionYear', productionYear.toString());
         if (purchaseYear) params.set('purchaseYear', purchaseYear.toString());
@@ -1205,7 +1205,7 @@ export class UserBagService {
           model: (collection.modelId as IModel).modelName,
           color: collection.bagColor,
           condition: collection.condition,
-          leather: collection.leatherType,
+          leather: collection.material,
           hardware: collection.hardwareColor,
           size: collection.size,
         }

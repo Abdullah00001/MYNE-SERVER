@@ -40,7 +40,7 @@ export interface IUserBag {
   primaryImage: string;
   images: string[];
   bagColor: string;
-  leatherType: string;
+  material: string;
   hardwareColor: string;
   size: string;
   priceStatus: TAdminBagPriceStatus;

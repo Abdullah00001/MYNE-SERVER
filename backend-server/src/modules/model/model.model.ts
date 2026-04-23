@@ -24,7 +24,7 @@ const ModelSchema = new Schema<IModel>(
       required: true,
       index: true,
     },
-    modelImage: { type: String },
+    modelImage: { type: String,default:null },
   },
   { timestamps: true }
 );

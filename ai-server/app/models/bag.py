@@ -51,3 +51,24 @@ class IdentifyRequest(BaseModel):
     photos: List[str]
     photo_mimes: List[str]
     user_id: str
+
+# --- CSV Catalog Model (for DB-first lookup) ---
+
+
+class CatalogBag(BaseModel):
+    brand: str
+    family: Optional[str] = None
+    model: str
+    size: Optional[str] = None
+    style_variant: Optional[str] = None
+    color: str
+    color_family: Optional[str] = None
+    leather: Optional[str] = None
+    hardware: Optional[str] = None
+    category: Optional[str] = None
+    aliases: Optional[List[str]] = []
+    image_name: Optional[str] = None
+    image_urls: Optional[List[str]] = []
+    estimated_value_eur: int = 0
+    source: str = "csv"
+    hit_count: int = 0

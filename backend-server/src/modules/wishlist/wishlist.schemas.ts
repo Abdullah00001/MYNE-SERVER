@@ -18,7 +18,7 @@ export const CreateWishSchema = z.object({
   }),
   priority: z.enum(['low', 'medium', 'high']),
   color: z.string().min(1, 'Color is required'),
-  leatherType: z.string().min(1, 'Leather type is required'),
+  material: z.string().min(1, 'Leather type is required'),
   note: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
   targetPrice: z.string().min(1, 'Target price is required'),

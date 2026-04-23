@@ -46,10 +46,18 @@ async def identify_upload(
     async def enrich_match(match):
         query = match.get(
             "imageSearchQuery") or f"{match.get('brand')} {match.get('model')} {match.get('detectedColor')}"
-        image_url = await fetch_bag_image(query)
-        return {**match, "image_url": image_url}
+        image_data = await fetch_bag_image(query)
+        return {
+            **match,
+            "thumbnailUrl": image_data.get("thumbnailUrl", ""),
+            "imageUrl": image_data.get("imageUrl", "")
+        }
 
-    enriched_matches = await asyncio.gather(*[enrich_match(m) for m in matches])
+    enriched_matches = []
+    for m in matches:
+        enriched = await enrich_match(m)
+        enriched_matches.append(enriched)
+        await asyncio.sleep(0.3)
 
     return {
         "status": 200,
@@ -184,6 +192,7 @@ async def health():
         "status": 200,
         "success": True,
         "message": "Server Is Running",
+        "traceId": str(uuid.uuid4())
     }
 
 

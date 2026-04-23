@@ -34,7 +34,7 @@ export interface IWishlist {
   modelId: string | IModel;
   priority: WishPriority;
   color: string;
-  leatherType: string;
+  material: string;
   note?: string;
   priceDescription: IPriceDescription;
   status?: PurchaseStatus;

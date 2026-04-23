@@ -29,7 +29,7 @@ export class WishlistService {
     modelId,
     priority,
     color,
-    leatherType,
+    material,
     note,
     priceDescription,
     image,
@@ -39,7 +39,7 @@ export class WishlistService {
     modelId: string;
     priority: string;
     color: string;
-    leatherType: string;
+    material: string;
     note?: string;
     priceDescription: IPriceDescription;
     image: string;
@@ -60,7 +60,7 @@ export class WishlistService {
         modelId: new Types.ObjectId(modelId),
         priority,
         color,
-        leatherType,
+        material,
         note,
         priceDescription,
         image: url,

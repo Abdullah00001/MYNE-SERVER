@@ -37,7 +37,7 @@ const WishlistSchema = new Schema<IWishlist>(
     },
     priority: { type: String, enum: ['low', 'medium', 'high'], required: true },
     color: { type: String, required: true },
-    leatherType: { type: String, required: true },
+    material: { type: String, required: true },
     note: { type: String, default: null },
     priceDescription: PriceDescriptionSchema,
     status: {

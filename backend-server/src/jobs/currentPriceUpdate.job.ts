@@ -39,7 +39,7 @@ const performPriceUpdate = async (): Promise<void> => {
       .populate('brandId', 'brandName')
       .populate('modelId', 'modelName')
       .select(
-        '_id brandId modelId bagColor condition leatherType hardwareColor size'
+        '_id brandId modelId bagColor condition material hardwareColor size'
       );
 
     if (publishedBags.length === 0) {
@@ -61,7 +61,7 @@ const performPriceUpdate = async (): Promise<void> => {
         model: (bag.modelId as any).modelName,
         color: bag.bagColor,
         condition: bag.condition,
-        leather: bag.leatherType,
+        leather: bag.material,
         hardware: bag.hardwareColor,
         size: bag.size,
         updateType,

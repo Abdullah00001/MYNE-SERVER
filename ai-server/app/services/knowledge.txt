@@ -1,0 +1,665 @@
+LUXURY BAG KNOWLEDGE BASE
+=========================
+
+=== PHOTO DETECTION RULES ===
+- Single front photo: can detect model, leather, color, hardware, size, variant
+- Multiple angles needed for: bi-color, tri-color, HSS stitching, stamp letter, verso interior
+- Stamp letter: embossed inside bag near base or under flap — only visible from interior photo
+- HSS stitching: tiny detail, requires closeup — if not clearly visible assume standard
+- Bi-color second panel: usually on back, sides, handles, or trim — may be invisible from front alone
+- When uncertain due to single/poor photo: note in analysis field, do not guess special classifications
+
+BI-COLOR DETECTION RULES:
+- Bi-color does NOT require high contrast. Even similar shades count (e.g. Ultra Violet body + Bleu Encre trim)
+- Key areas to check: handles, trim, piping, interior flap, clochette, straps vs body
+- If handles/trim are visibly different shade from body = isBiColor: true
+- Common subtle bi-color combos: Étoupe + Gold trim, Noir + Rouge H trim, similar purple shades, Bleu + Navy
+- Do NOT require the two colors to be obviously different — compare handles vs body specifically
+- If only front photo: check handles and visible trim carefully before assuming single color
+
+HSS DETECTION RULES:
+- MUST have BOTH: two-tone leather body AND contrasting stitching color
+- If stitching matches body color = NOT HSS
+- Stitching color is tiny — requires closeup photo to confirm
+- If no closeup provided, do not assume HSS
+- Common HSS combos: Noir body + Gold stitching, Étoupe body + Rouge H stitching
+
+VERSO DETECTION RULES:
+- Verso = interior flap is different color from exterior
+- Only detectable if flap is open in photo showing interior
+- Cannot be confirmed from closed bag photo — do not guess
+
+STAMP LETTER RULES:
+- Only applicable to Hermès bags
+- Location: blind stamped inside bag, near base gusset or under flap
+- Requires interior photo under good lighting
+- If no interior photo: always return "Not visible"
+- Do not guess stamp letter from exterior photo
+
+
+=== HERMÈS ===
+
+--- MODELS & KEY IDENTIFIERS ---
+
+BIRKIN (25/30/35/40):
+- Two top handles
+- Two leather straps with metal padlock closure
+- No shoulder strap
+- Flap closure with turnstile lock
+- Trapezoidal shape, structured base
+- Most iconic Hermès bag
+- Size guide: 25=small, 30=medium most popular, 35=large, 40=very large
+- Confused with: Kelly — KEY DIFFERENCE: Birkin has TWO handles + padlock. Kelly has ONE handle + turn-lock clasp.
+
+KELLY (20/25/28/32/35):
+- Single top handle
+- Turn-lock (Hermès clasp) closure
+- Trapezoid shape
+- Can be Sellier (rigid, outside stitching) or Retourne (soft, inside stitching)
+- Has shoulder strap
+- Size guide: 20=mini, 25=small, 28=medium, 32=large, 35=XL
+- Sellier: structured, sharp corners, stitching visible on outside
+- Retourne: soft, rounded corners, stitching on inside
+- Confused with: Birkin — KEY DIFFERENCE: Kelly has ONE handle + turn-lock. Birkin has TWO handles + padlock.
+
+MINI KELLY II (20):
+- Same as Kelly but always 20cm
+- Always Sellier construction
+- Second generation (II) has slightly different strap detail
+
+KELLY POCHETTE:
+- Clutch version of Kelly
+- No top handle
+- Same turn-lock closure as Kelly
+- Carried by hand or tucked under arm
+
+KELLY DANSE:
+- Small Kelly shape
+- Worn crossbody
+- Compact, danceable silhouette
+
+KELLY ADO:
+- Backpack version of Kelly
+- Same Kelly silhouette but worn as backpack
+
+CONSTANCE (18/24):
+- Single shoulder/crossbody bag
+- Distinctive H-clasp closure on front
+- Single flap
+- Clean minimal profile
+- Size: 18=small, 24=medium
+- Confused with: Evelyne — KEY DIFFERENCE: Constance has H-clasp flap closure. Evelyne has perforated H and is open top.
+
+JYPSIÈRE (28/31/34):
+- FRONT BUCKLE STRAP across body — most important identifier
+- Exterior front pocket
+- Structured flat base
+- Single shoulder strap
+- Size: 28=small, 31=medium, 34=large
+- Confused with: Halzan — KEY DIFFERENCE: Jypsière has BUCKLE on front strap + front pocket. Halzan has wrap/tie strap, no buckle, no pocket.
+
+HALZAN (25/31):
+- Wrap/tie strap — no buckle
+- No front exterior pocket
+- Relaxed, slouchy shape
+- Double wrap handle
+- Size: 25=small, 31=large
+- Confused with: Jypsière — KEY DIFFERENCE: Halzan has wrap tie strap, NO buckle, NO front pocket. Jypsière has buckle + pocket.
+
+LINDY (26/30):
+- Double top handles
+- Open top (no closure)
+- Two interior compartments
+- Can be carried as shoulder bag
+- Relaxed shape
+- Size: 26=small, 30=large
+
+PICOTIN (18/22):
+- Bucket shape
+- Open top — no closure
+- Two small top handles
+- Simple, casual style
+- Size: 18=small, 22=large (Lock versions have a padlock)
+
+EVELYNE (TPM/PM/GM):
+- Perforated H logo on back panel — most important identifier
+- Single crossbody strap
+- Open top, no closure
+- Casual, sporty style
+- Size: TPM=tiny, PM=small, GM=large
+- Confused with: Constance — KEY DIFFERENCE: Evelyne has perforated H + open top. Constance has H-clasp flap closure.
+
+BOLIDE (27/31/45):
+- Rounded rectangular shape
+- Zip closure on top
+- Single or double handles
+- Shoulder strap
+- One of the oldest Hermès designs
+
+GARDEN PARTY (30/36):
+- Tote style
+- Canvas + leather trim (Toile/Leather combo common)
+- Open top
+- Casual everyday bag
+
+--- LEATHERS ---
+
+Togo:
+- Pebbled grain texture
+- Soft and supple
+- Scratch resistant — most popular choice
+- Slightly matte finish
+- Holds shape well
+- Most common leather for Birkin and Kelly
+
+Clémence:
+- Loose pebbled grain — slightly larger pebbles than Togo
+- Softer and more relaxed than Togo
+- Slightly matte finish
+- Slouches more than Togo
+- TOGO vs CLÉMENCE: Togo more structured with tighter grain. Clémence softer with looser grain.
+
+Epsom:
+- Fine cross-hatch embossed pattern — very distinctive
+- Structured and rigid — holds shape best
+- Lighter weight
+- Resists scratches well
+- Pattern is pressed/embossed not natural grain
+- EPSOM vs TOGO: Epsom has geometric cross-hatch. Togo has natural round pebbles.
+
+Swift:
+- Smooth, very fine grain
+- Lightweight
+- Soft and supple
+- Shows scratches more easily
+- Vibrant color saturation
+- SWIFT vs BOX CALF: Swift has slight grain. Box Calf is completely smooth and shinier.
+
+Box Calf:
+- Completely smooth leather
+- Shiny, almost patent-like finish
+- Classic, vintage aesthetic
+- Shows scratches — develops patina over time
+- Stiffer than Swift
+
+Barenia:
+- Smooth, natural tan leather
+- Darkens and develops patina with use and sun exposure
+- Ages beautifully
+- Natural, unprocessed feel
+
+Chèvre Mysore:
+- Fine, tight grain from goatskin
+- Very lightweight
+- Extremely durable
+- Slightly shiny
+- Holds embossing very well
+
+Veau Madame:
+- Fine grain calfskin
+- Similar to Epsom but softer
+- Structured but not as rigid
+
+Evercolor:
+- Fine pebbled grain
+- Very scratch resistant
+- Consistent texture
+- Popular for smaller accessories
+
+Niloticus Crocodile:
+- EXOTIC — rectangular, symmetrical scales
+- Very high value (+300-1000% base price)
+- Comes from Nile crocodile
+- Scales are large and defined
+- NILOTICUS vs POROSUS: Niloticus has larger rectangular scales. Porosus has smaller, more irregular scales.
+
+Porosus Crocodile:
+- EXOTIC — smaller, more irregular scales than Niloticus
+- Saltwater crocodile
+- Considered most prestigious crocodile leather
+- Very high value
+
+Ostrich:
+- EXOTIC — distinctive follicle bumps/quill marks visible
+- Soft and durable
+- Center cut has raised quill pattern
+- Very high value
+
+Lizard:
+- EXOTIC — small, tight rectangular scales
+- Shiny surface
+- Delicate
+- Very high value
+
+Toile:
+- Canvas fabric (not leather)
+- Often combined with leather trim
+- Common in Garden Party and some special editions
+
+--- HARDWARE ---
+- Gold Hardware (GHW): warm yellow gold tone
+- Palladium Hardware (PHW): cool silver tone — most common
+- Brushed Gold Hardware (BGHW): matte gold finish
+- Ruthenium Hardware (RHW): dark gunmetal/charcoal tone
+- Permabrass Hardware (PBHW): aged warm brass tone
+- Black Hardware (BHW): matte black — rare, special order
+
+--- COLORS (Official Hermès Names) ---
+
+Neutrals/Whites:
+- Noir: true black — flat, no undertone
+- Blanc: pure white
+- Craie: chalk white, slightly warm
+- Nata: cream/off-white, warmer than Craie
+- Béton: concrete grey, cool undertone
+- Gris Perle: pearl grey, very light
+- Gris Tourterelle: dove grey, medium warm grey
+- Étain: tin/pewter grey, darker cool grey
+- Étoupe: warm taupe/greige — one of most popular neutrals
+- Gris Meyer: medium cool grey
+- Parchemin: parchment, warm off-white
+
+Browns/Tans:
+- Gold: warm honey/caramel gold — classic Hermès neutral
+- Fauve: fawn/tan, warm medium brown
+- Caramel: warm caramel brown
+- Havane: tobacco brown, warm
+- Marron Foncé: dark chocolate brown
+- Café: coffee brown, medium
+- Chocolat: dark chocolate
+- Tabac: tobacco, warm dark brown
+- Noisette: hazelnut, light warm brown
+- Naturel: natural tan, similar to Barenia color
+
+Blues:
+- Bleu Nuit: dark navy — has cool blue undertone. COMMONLY CONFUSED WITH NOIR in low light.
+- Bleu Indigo: deep indigo blue-purple
+- Bleu Marine: classic navy blue
+- Bleu de Prusse: Prussian blue, deep rich blue
+- Bleu Saphir: sapphire blue, vivid medium blue
+- Bleu Électrique: electric bright blue
+- Bleu Zanzibar: deep teal-blue
+- Bleu Atoll: bright turquoise blue
+- Bleu Brume: misty/hazy light blue
+- Bleu Lin: linen blue, muted light blue
+- Bleu Céleste: sky blue
+- NOTE: Bleu Nuit vs Noir — Bleu Nuit has visible blue undertone especially in natural light. Noir is completely flat black.
+
+Purples:
+- Ultra Violet: bright vivid purple
+- Améthyste: amethyst purple, slightly cooler
+- Raisin: deep grape purple
+- Mauve Sylvestre: muted dusty mauve
+- Lilas: soft lilac
+- Cassis: blackcurrant, very dark purple
+
+Greens:
+- Vert Anglais: British racing green, deep classic green
+- Vert Cypress: cypress green, muted olive-green
+- Vert Criquet: cricket green, medium khaki green
+- Vert Jade: jade green, medium cool green
+- Vert Véronèse: vivid bright green
+- Vert Forêt: forest green, dark
+- Vert Anis: anise/lime green, bright yellow-green
+- Vert Chartreuse: chartreuse, yellow-green
+- Vert Olive: olive green
+
+Reds/Pinks:
+- Rouge H: deep burgundy red — classic Hermès red
+- Rouge Casaque: bright true red
+- Rouge de Cœur: heart red, vivid
+- Rouge Tomate: tomato red, bright orange-red
+- Bordeaux: deep wine/burgundy
+- Brique: brick red, terracotta
+- Rose Sakura: soft cherry blossom pink
+- Rose Azalée: bright hot pink
+- Rose Confetti: light bubblegum pink
+- Rose Pourpre: deep rose-purple
+- Rubis: ruby red, deep vivid red
+
+Yellows/Oranges:
+- Jaune Ambre: amber yellow, warm
+- Jaune Poussin: chick yellow, bright
+- Jaune Citron: lemon yellow
+- Orange: classic Hermès orange — signature brand color
+- Sanguine: blood orange, deep orange-red
+- Abricot: apricot, soft orange
+
+--- SPECIAL CLASSIFICATIONS ---
+
+HSS (Horseshoe Stamp Special Order):
+- MUST have BOTH: two-tone leather body AND contrasting stitching color
+- If stitching matches body = NOT HSS
+- Value: +50-150% to base price
+- JSON: isBiColor=true, isHSS=true, secondaryColor=stitching color
+- specialNotes: "HSS: [body color] with [stitching color] stitching"
+
+Verso:
+- Interior flap is different color from exterior
+- Must see open flap to confirm
+- JSON: specialNotes: "Verso: [exterior color]/[interior color]"
+
+Bi-color:
+- Two distinct color panels on bag body
+- Check handles, trim, piping vs body — even subtle differences count
+- JSON: isBiColor=true, detectedColor=primary, secondaryColor=secondary
+- specialNotes: "Bi-color: [color1]/[color2]"
+
+Tri-color:
+- Three distinct color panels
+- Very rare
+- JSON: isTriColor=true, detectedColor=primary, secondaryColor=secondary, tertiaryColor=third
+- specialNotes: "Tri-color: [color1]/[color2]/[color3]"
+
+Special Order (SO):
+- Any non-standard configuration
+- Unusual color/leather/hardware combinations
+- Interior colors different from standard
+- Value: +30-200% to base price
+
+--- STAMP LETTERS (Year of Production) ---
+A = 2017
+B = 2018
+C = 2019
+D = 2020
+X = 2021
+Y = 2022
+Z = 2023
+A = 2024 (cycle repeats)
+Note: Letter is blind stamped inside bag. Shape around letter indicates decade.
+
+--- VALUE MULTIPLIERS ---
+- Special Order (SO): +30-200% to base resale value
+- Exotic leather (Crocodile/Ostrich/Lizard): +300-1000% to base
+- HSS: +50-150% to base
+- Rare/discontinued colors: +20-50%
+- Box Fresh/Unworn with full accessories: +20-40%
+- Full set (box, dustbag, receipt, clochette, lock, keys): +10-20%
+
+
+=== CHANEL ===
+
+--- MODELS ---
+
+Classic Flap (Small/Medium/Jumbo/Maxi):
+- Quilted leather exterior
+- CC turn-lock closure — most important identifier
+- Chain and leather interwoven strap
+- Double flap interior
+- Size: Small=23cm, Medium=25cm, Jumbo=30cm, Maxi=33cm
+- CONFUSED WITH 2.55 Reissue: Classic has CC logo turn-lock. Reissue has rectangular Mademoiselle lock.
+
+2.55 Reissue:
+- Rectangular Mademoiselle lock (not CC logo)
+- Distressed aged leather
+- Burgundy interior lining
+- All-chain strap (no leather woven in)
+- Vintage aesthetic
+- CONFUSED WITH Classic Flap: Reissue has rectangular lock. Classic has CC turn-lock.
+
+Mini Rectangular:
+- Same as Classic Flap but tiny rectangular shape
+- CC turn-lock
+- Very small — fits phone and cards only
+
+Mini Square:
+- Square version of mini flap
+- CC turn-lock
+- Slightly deeper than rectangular mini
+
+Boy (Small/Medium/Large):
+- Chunky rectangular shape
+- Push-lock clasp closure — not CC turn-lock
+- Chunky chain strap
+- More edgy/modern aesthetic
+- CONFUSED WITH Classic: Boy has chunky chain + push clasp. Classic has thin chain + CC lock.
+
+22 Bag:
+- Soft, unstructured
+- Chain handle
+- Drawstring-style soft opening
+- Named after 2022 launch
+
+19 Bag:
+- Soft, relaxed shape
+- Mixed chain + leather strap
+- Flap with CC closure
+- Casual luxury aesthetic
+
+Coco Handle:
+- Top handle + chain strap
+- Structured shape
+- Similar to classic flap but with top handle
+- Quilted exterior
+
+Gabrielle:
+- Hobo/shoulder bag shape
+- Multiple carry options (hand, shoulder, crossbody)
+- Chain strap
+- Casual modern style
+
+WOC (Wallet on Chain):
+- Very small — wallet size
+- Chain strap only
+- CC closure
+- Evening/minimal carry
+
+--- LEATHERS ---
+- Caviar: pebbled calfskin, durable, scratch resistant, most popular
+- Lambskin: buttery smooth, soft, luxurious but scratches easily
+- Goatskin: slightly textured, durable
+- Tweed: fabric, often seasonal
+- Jersey: fabric, soft
+- Velvet: fabric, delicate, seasonal
+
+--- HARDWARE ---
+Gold, Silver, Ruthenium, Mixed (gold+silver)
+
+--- SERIAL NUMBERS ---
+Format: sticker inside bag with series number
+Pre-2021: rectangular sticker with number series
+Post-2021: QR code chip embedded in bag lining
+
+
+=== LOUIS VUITTON ===
+
+--- CANVAS LINES ---
+- Monogram: tan canvas with LV logo + flower/star pattern — most iconic
+- Damier Ebene: brown checkerboard pattern
+- Damier Azur: light blue/cream checkerboard
+- Epi: textured leather, no logo pattern, comes in many colors
+- Mahina: perforated leather with LV logo
+- Empreinte: embossed monogram on smooth leather
+- Taurillon: smooth unembossed calfskin, minimal branding
+
+--- MODELS ---
+- Neverfull (MM/GM/PM): open tote, vachetta trim, signature LV lining. MM=most popular.
+- Speedy (25/30/35): structured handheld bag, zip closure, classic silhouette
+- Alma (BB/PM/MM): structured arch shape, top handles, lock closure
+- Pochette Métis: flap bag, mixed canvas, structured
+- OnTheGo (MM/GM): large tote, two-sided design
+- Capucines (BB/PM/MM): luxury calfskin, no monogram, top handle
+- Twist (MM/PM): twist lock closure, sleek modern
+- Loop: crescent hobo shape
+- Multi Pochette: multiple pouch accessories on chain
+
+--- DATE CODES ---
+Format: letter+number+letter+number (e.g. AR0012)
+Letters = factory code, Numbers = week and year of production
+Post-2021: microchip replaces date code
+
+
+=== DIOR ===
+
+--- MODELS ---
+Lady Dior (Small/Medium/Large):
+- Quilted Cannage pattern
+- Letter charms spelling D-I-O-R on handles
+- Top handle + shoulder strap
+- Classic structured shape
+- Most iconic Dior bag
+
+Dior Book Tote:
+- Large open tote
+- Embroidered fabric exterior
+- No closure
+- Seasonal patterns/embroideries
+
+30 Montaigne:
+- CD clasp closure
+- Structured box shape
+- Top handle + strap
+- Named after Dior's address
+
+Saddle Bag:
+- Distinctive saddle/half-moon shape
+- CD buckle
+- Crossbody
+- Vintage 2000s design, relaunched
+
+Bobby:
+- Soft hobo shape
+- CD clasp
+- Shoulder/crossbody
+
+Caro:
+- Macrocannage (large quilt) pattern
+- CD clasp
+- Modern structured shape
+
+--- LEATHERS ---
+- Cannage: classic small diamond quilt — signature Dior
+- Macro Cannage: oversized diamond quilt
+- Ultramatte: matte smooth calfskin
+- Smooth Calfskin: polished smooth leather
+- Embroidered: seasonal fabric/embroidery
+
+
+=== BOTTEGA VENETA ===
+
+--- MODELS ---
+Jodie (Mini/Small/Medium):
+- Hobo shape
+- Intrecciato woven leather
+- Knot detail at top
+- Soft, slouchy
+
+Arco (33/48):
+- Structured tote
+- Intrecciato woven
+- Top handles
+- Clean minimal shape
+
+Cassette:
+- Small structured bag
+- Intrecciato woven
+- Padded/puffed squares within weave
+- Chain strap
+
+Pouch:
+- Soft clutch/bag
+- Woven leather
+- No handles, held in hand
+
+Andiamo:
+- Tote style
+- Woven leather
+- Structured base
+
+Sardine:
+- Small rectangular clutch
+- Woven leather
+
+--- WEAVE TYPES ---
+- Intrecciato standard: classic tight weave, strips ~1cm wide
+- Maxi Intrecciato: oversized weave, strips ~3-4cm wide — modern/bold look
+
+
+=== PRADA ===
+
+--- MODELS ---
+- Re-Edition 2000: small nylon shoulder bag, triangle logo, 2000s vintage
+- Re-Edition 2005: larger nylon shoulder bag with leather trim
+- Galleria (Small/Medium/Large): structured saffiano tote, top handle + strap
+- Cleo: sleek semi-structured shoulder bag, arc shape
+- Padded Nappa: pillowy soft padded leather
+- Tessuto Nylon: classic nylon with leather trim
+
+--- MATERIALS ---
+- Saffiano: cross-hatch embossed leather, scratch resistant, structured — most iconic Prada material
+- Nappa: smooth soft calfskin
+- Tessuto: nylon fabric
+- Re-Nylon: recycled nylon (sustainable line)
+
+
+=== SAINT LAURENT ===
+
+--- MODELS ---
+- Loulou (Small/Medium): quilted YSL logo, chain strap, flap closure
+- Kate: structured tassel clutch/shoulder bag, chain strap
+- Icare: large tote, minimal branding
+- Solferino: structured flap, top handle + chain
+- Envelope: flat crossbody, YSL clasp
+- Le 5 à 7: sleek structured shoulder bag
+
+--- LEATHERS ---
+- Smooth Leather: polished calfskin
+- Grained Leather: pebbled texture
+- Suede: napped leather, soft
+- Patent: high-gloss lacquered leather
+
+
+=== CELINE ===
+
+--- MODELS ---
+- Luggage (Nano/Mini/Micro): distinctive face-like shape with wing handles + top handle. Nano=tiny, Mini=small, Micro=medium.
+- Classic Box: structured boxy shape, flap closure, shoulder strap — vintage Celine
+- Triomphe: canvas with Triomphe clasp, crossbody
+- Teen Triomphe: larger version of Triomphe
+- Cabas: open tote, minimal branding
+- AVA: structured small handbag, top handle
+
+
+=== GUCCI ===
+
+--- MODELS ---
+- Dionysus (Small/Medium): tiger head closure, chain strap, GG canvas or leather
+- Marmont (Small/Medium/Large): GG logo quilting, gold chain, flap closure
+- Bamboo 1947: bamboo handle detail, classic Gucci
+- Jackie 1961: hobo shape, piston closure, named after Jackie Kennedy
+- Horsebit 1955: horsebit hardware, shoulder bag, vintage reissue
+- Ophidia: GG canvas, web stripe detail, structured
+
+
+=== ALL BRANDS ===
+
+--- HARDWARE VALUES ---
+"Gold", "Silver", "Palladium", "Ruthenium", "Antique Gold", "Rose Gold", "Black"
+
+--- CONDITION VALUES ---
+- New: unworn, box fresh, all tags/accessories present
+- Excellent: minimal use, no visible wear, hardware pristine
+- Very Good: light use, minor marks only, hardware mostly clean
+- Good: moderate use, visible wear on corners/hardware
+- Fair: heavy use, significant wear, hardware scratched
+
+--- ACCESSORIES THAT ADD VALUE ---
+- Dustbag: +5%
+- Box: +5%
+- Receipt/Invoice: +10%
+- Clochette (Hermès): +5%
+- Lock + Keys (Hermès): +10%
+- Rain cover (Hermès): +3%
+- Authenticity card (Chanel): +5%
+- Full set all accessories: +20-30% total
+
+--- COMMON CONFUSION PAIRS ---
+- Hermès Birkin vs Kelly: handles (2 vs 1) + closure (padlock vs turn-lock)
+- Hermès Kelly vs Constance: shape (trapezoid vs flat) + closure (turn-lock vs H-clasp)
+- Hermès Jypsière vs Halzan: front buckle + pocket (Jypsière) vs wrap strap (Halzan)
+- Hermès Constance vs Evelyne: H-clasp flap (Constance) vs perforated H open top (Evelyne)
+- Chanel Classic Flap vs 2.55: CC turn-lock (Classic) vs Mademoiselle lock (2.55)
+- Chanel Classic vs Boy: thin chain + CC lock (Classic) vs chunky chain + push clasp (Boy)
+- Bleu Nuit vs Noir: blue undertone visible in light (Bleu Nuit) vs flat black (Noir)
+- Togo vs Clémence: tighter grain structured (Togo) vs looser softer grain (Clémence)
+- Epsom vs Togo: cross-hatch embossed (Epsom) vs natural round pebbles (Togo)

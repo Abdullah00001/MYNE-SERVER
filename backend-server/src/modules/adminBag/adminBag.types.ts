@@ -9,7 +9,7 @@ export enum TrendEnum {
   STABLE = 'stable',
 }
 
-export type Currency = typeof CURRENCIES[number];
+export type Currency = (typeof CURRENCIES)[number];
 
 export type TAdminBagPriceStatus = {
   currentValue: number;
@@ -26,7 +26,7 @@ export interface IAdminBags {
   bagBrand: Schema.Types.ObjectId;
   bagModel: Schema.Types.ObjectId;
   bagColor: string;
-  leatherType: string;
+  material: string;
   hardwareColor: string;
   size: string;
   condition: string;
@@ -34,7 +34,6 @@ export interface IAdminBags {
   priceStatus: TAdminBagPriceStatus;
   user: Schema.Types.ObjectId;
 }
-
 
 export type TActions = {
   create?: TActionLink;

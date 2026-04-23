@@ -10,7 +10,7 @@ export class CreateWishDTO extends BaseDTO<IWishlist> {
   public model: string | IModel;
   public priority: string;
   public color: string;
-  public leatherType: string;
+  public material: string;
   public note?: string;
   public priceDescription: {
     currency: string;
@@ -29,7 +29,7 @@ export class CreateWishDTO extends BaseDTO<IWishlist> {
     this.model = data.modelId;
     this.priority = data.priority;
     this.color = data.color;
-    this.leatherType = data.leatherType;
+    this.material = data.material;
     this.note = data.note;
     this.priceDescription = {
       currency: data.priceDescription.currency,

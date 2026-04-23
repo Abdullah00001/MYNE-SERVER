@@ -18,7 +18,7 @@ export const CreateAdminBagSchema = z.object({
       error: 'Bag color cannot be empty',
     }),
 
-  leatherType: z
+  material: z
     .string({
       error: 'Leather type is required',
     })
@@ -61,7 +61,7 @@ export const UpdateAdminBagSchema = z.object({
       error: 'Bag color cannot be empty',
     }),
 
-  leatherType: z
+  material: z
     .string({
       error: 'Leather type is required',
     })

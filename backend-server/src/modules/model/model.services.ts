@@ -154,15 +154,66 @@ export class ModelService {
     params,
     user,
   }: {
-    params: { page: string | null; limit: string | null };
+    params: {
+      page?: string;
+      limit?: string;
+      search?: string;
+      brandId?: string;
+    };
     user: IUser | JwtPayload;
   }): Promise<TGetModelResponse> {
     try {
       const page = parseInt(params.page || '1', 10);
       const limit = parseInt(params.limit || '10', 10);
       const skip = (page - 1) * limit;
+      const search = params?.search?.trim();
+      const brandId = params?.brandId?.trim();
       const isAdmin = user.role === Role.ADMIN;
+
+      // Build match conditions
+      const matchConditions: Record<string, unknown> = {};
+
+      if (search) {
+        matchConditions.modelName = { $regex: search, $options: 'i' };
+      }
+
+      if (brandId) {
+        if (!Types.ObjectId.isValid(brandId)) {
+          throw new Error('Invalid brandId format');
+        }
+        matchConditions.brandId = new Types.ObjectId(brandId);
+      }
+
+      const matchStage =
+        Object.keys(matchConditions).length > 0
+          ? [{ $match: matchConditions }]
+          : [];
+
       const [result] = await ModelModel.aggregate([
+        ...matchStage,
+        {
+          $lookup: {
+            from: 'brands', // MongoDB collection name
+            localField: 'brandId',
+            foreignField: '_id',
+            as: 'brand',
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  brandName: 1,
+                  brandImage: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          // Unwind to object — preserve models with no brand as null
+          $addFields: {
+            brand: { $arrayElemAt: ['$brand', 0] },
+          },
+        },
         {
           $facet: {
             data: [{ $skip: skip }, { $limit: limit }],
@@ -174,41 +225,26 @@ export class ModelService {
       const rawData = result.data || [];
       const total = result.total[0]?.count || 0;
       const totalPages = Math.ceil(total / limit);
-
       const data = rawData;
 
-      // Calculate showing range
       const from = total === 0 ? 0 : skip + 1;
       const to = Math.min(skip + limit, total);
       const showing = `Showing ${from} to ${to} of ${total} results`;
 
-      // Determine base path based on user role
       const basePath = user.role === 'admin' ? '/admin/model' : '/model';
 
       const actions: TBrandActions = {
-        create: isAdmin
-          ? {
-              href: `${basePath}`,
-              method: 'POST',
-            }
-          : undefined,
+        create: isAdmin ? { href: `${basePath}`, method: 'POST' } : undefined,
         update:
           isAdmin && data.length > 0
-            ? {
-                href: `${basePath}/:id`,
-                method: 'PUT',
-              }
+            ? { href: `${basePath}/:id`, method: 'PUT' }
             : undefined,
         delete:
           isAdmin && data.length > 0
-            ? {
-                href: `${basePath}/:id`,
-                method: 'DELETE',
-              }
+            ? { href: `${basePath}/:id`, method: 'DELETE' }
             : undefined,
       };
 
-      // If no data, return null for links
       if (data.length === 0) {
         return {
           data,
@@ -224,11 +260,13 @@ export class ModelService {
         };
       }
 
-      // Helper function to build links
+      // Preserve all active filters in pagination links
       const buildLink = (pageNum: number): string => {
         const query = new URLSearchParams();
         query.set('page', pageNum.toString());
         query.set('limit', limit.toString());
+        if (search) query.set('search', search);
+        if (brandId) query.set('brandId', brandId);
         return `${basePath}?${query.toString()}`;
       };
 
@@ -252,11 +290,32 @@ export class ModelService {
       };
     } catch (error) {
       if (error instanceof Error) throw error;
-      throw new Error('Unknown error occurred in delete model service');
+      throw new Error('Unknown error occurred in get models service');
     }
   }
 
-  // TODO: implement here search service
+  async createBrandByUser({
+    brandId,
+    modelName,
+    user,
+  }: {
+    user: IUser;
+    modelName: string;
+    brandId: string;
+  }): Promise<IModel> {
+    try {
+      const newModel = new ModelModel({
+        modelName,
+        brandId: new Types.ObjectId(brandId),
+        createdBy: user?._id,
+      });
+      await newModel.save();
+      return newModel;
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error('Unknown error occurred in create model by user service');
+    }
+  }
 
   async searchModel({
     modelName,

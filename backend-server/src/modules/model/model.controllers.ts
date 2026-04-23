@@ -5,6 +5,7 @@ import { injectable } from 'tsyringe';
 import { BaseController } from '@/core/base_classes/base.controller';
 import { GetModelDTO } from '@/modules/model/model.dto';
 import { ModelService } from '@/modules/model/model.services';
+import { IUser } from '@/modules/auth/auth.types';
 
 @injectable()
 export class ModelController extends BaseController {
@@ -15,6 +16,7 @@ export class ModelController extends BaseController {
   public getSingleModel: RequestHandler;
   public getModels: RequestHandler;
   public searchModel: RequestHandler;
+  public createModelByUser: RequestHandler;
 
   constructor(private readonly modelService: ModelService) {
     super();
@@ -25,6 +27,7 @@ export class ModelController extends BaseController {
     this.getSingleModel = this.wrap(this._getSingleModel);
     this.getModels = this.wrap(this._getModels);
     this.searchModel = this.wrap(this._searchModel);
+    this.createModelByUser = this.wrap(this._createModelByUser);
   }
 
   private async _createModel(req: Request, res: Response): Promise<void> {
@@ -119,13 +122,36 @@ export class ModelController extends BaseController {
 
   private async _getModels(req: Request, res: Response): Promise<void> {
     const user = req.user;
-    const params = req.query as { page: string | null; limit: string | null };
+
+    const params = req.query as {
+      page?: string;
+      limit?: string;
+      search?: string;
+      brandId?: string;
+    };
     const data = await this.modelService.getModels({ params, user });
     res.status(200).json({
       success: true,
       status: 200,
       message: 'Models retrieve successful',
       ...data,
+    });
+    return;
+  }
+
+  private async _createModelByUser(req: Request, res: Response): Promise<void> {
+    const user = req.user as IUser;
+    const { modelName, brandId } = req.body;
+    const data = await this.modelService.createBrandByUser({
+      brandId,
+      modelName,
+      user,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Model create by user successful',
+      data,
     });
     return;
   }

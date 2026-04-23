@@ -71,6 +71,16 @@ router
 
 router
   .route('/model')
-  .get(authMiddleware.checkAccessToken, controller.getModels);
+  .get(
+    authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
+    controller.getModels
+  )
+  .post(
+    authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
+    validateReqBody(CreateModelSchema),
+    controller.createModelByUser
+  );
 
 export default router;

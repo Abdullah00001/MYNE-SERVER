@@ -33,7 +33,7 @@ export interface IAdminBags {
   bagBrand: Schema.Types.ObjectId;
   bagModel: Schema.Types.ObjectId;
   bagColor: string;
-  leatherType: string;
+  material: string;
   hardwareColor: string;
   size: string;
   condition: string;
@@ -72,7 +72,7 @@ const AdminBagSchema = new Schema<IAdminBags>(
       index: true,
     },
     bagColor: { type: String, required: true },
-    leatherType: { type: String, required: true },
+    material: { type: String, required: true },
     hardwareColor: { type: String, default: null },
     size: { type: String, required: true },
     condition: { type: String, default: null },

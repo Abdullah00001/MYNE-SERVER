@@ -22,9 +22,7 @@ import {
   TUpdateAdminBagPayload,
 } from '@/modules/adminBag/adminBag.schemas';
 import { env } from '@/env';
-import {
-  Currency,
-} from '@/modules/adminBag/adminBag.types';
+import { Currency } from '@/modules/adminBag/adminBag.types';
 
 @injectable()
 export class AdminBagService {
@@ -46,7 +44,7 @@ export class AdminBagService {
       bagBrand,
       bagColor,
       bagModel,
-      leatherType,
+      material,
       hardwareColor,
       size,
       condition,
@@ -62,7 +60,7 @@ export class AdminBagService {
           model: bagModel,
           color: bagColor,
           condition: condition,
-          leather: leatherType,
+          leather: material,
           hardware: hardwareColor,
           size: size,
         }
@@ -70,11 +68,11 @@ export class AdminBagService {
       const aiData = plainResponse.data?.data;
       const currency: Currency = aiData?.currency ?? null;
       const priceStatus = {
-          trend: aiData?.trend ?? null,
-          changePercentage: aiData?.change_percentage ?? null,
-          currentValue: aiData?.current_value ?? null,
-          currency,
-          fetchedAt: new Date().toISOString(),
+        trend: aiData?.trend ?? null,
+        changePercentage: aiData?.change_percentage ?? null,
+        currentValue: aiData?.current_value ?? null,
+        currency,
+        fetchedAt: new Date().toISOString(),
       };
       const url = await this.s3Utils.singleUpload({
         filePath,
@@ -85,7 +83,7 @@ export class AdminBagService {
         bagBrand,
         bagModel,
         bagColor,
-        leatherType,
+        material,
         hardwareColor,
         size,
         condition,
@@ -275,7 +273,7 @@ export class AdminBagService {
     payload: TUpdateAdminBagPayload;
     file?: string;
   }): Promise<CreateAdminBagDTO> {
-    const { bagColor, leatherType, hardwareColor, size, condition } = payload;
+    const { bagColor, material, hardwareColor, size, condition } = payload;
     let bagImage = bag.image;
     try {
       if (file) {
@@ -298,7 +296,7 @@ export class AdminBagService {
         {
           image: bagImage,
           bagColor,
-          leatherType,
+          material,
           hardwareColor,
           size,
           condition,
