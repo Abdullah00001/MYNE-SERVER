@@ -17,7 +17,13 @@ export const CreateAdminBagSchema = z.object({
     .min(1, {
       error: 'Bag color cannot be empty',
     }),
-
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
   material: z
     .string({
       error: 'Leather type is required',
@@ -68,7 +74,13 @@ export const UpdateAdminBagSchema = z.object({
     .min(1, {
       error: 'Leather type cannot be empty',
     }),
-
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
   hardwareColor: z
     .string({
       error: 'Hardware color is required',

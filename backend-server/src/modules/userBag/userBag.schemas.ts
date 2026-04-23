@@ -128,17 +128,30 @@ export const CreateCollectionSchema = z.object({
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
     }),
-
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
   purchaseType: z
     .string({
       error: 'Purchase type is required',
     })
     .min(1, {
       error: 'Purchase type cannot be empty',
-    }),
+    }).optional(),
 
   // Optional fields - also coerced if provided
-  waitingTime: z.string().optional(),
+  waitingTime: z
+    .enum(
+      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
+      {
+        error: 'Please select a valid waiting time option.',
+      }
+    )
+    .optional(),
 
   notes: z.string().optional(),
   publishStatus: z.enum(PublishStatus),
@@ -220,7 +233,7 @@ export const baseUpdateSchema = z.object({
     })
     .min(0, {
       error: 'Purchase price cannot be negative',
-    }),
+    }).optional(),
 
   // Currency
   currency: z
@@ -251,6 +264,14 @@ export const baseUpdateSchema = z.object({
       error: 'Seller name cannot be empty',
     }),
 
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
+
   // Purchase date - accepts dd/mm/yy format
   purchaseDate: z
     .string()
@@ -279,7 +300,14 @@ export const baseUpdateSchema = z.object({
   }),
 
   // Optional fields (can be null or undefined)
-  waitingTime: z.string().optional(),
+  waitingTime: z
+    .enum(
+      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
+      {
+        error: 'Please select a valid waiting time option.',
+      }
+    )
+    .optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
   publishStatus: z.enum(PublishStatus),
@@ -489,6 +517,13 @@ export const createBagStepOneSchema = z.object({
     .min(1, {
       error: 'Leather type cannot be empty',
     }),
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
   // Condition of the bag
   condition: z
     .string({
@@ -537,6 +572,14 @@ export const createBagStepTwoSchema = z.object({
       error: 'Seller name cannot be empty',
     }),
 
+  variant: z
+    .string({
+      error: 'Variant is required',
+    })
+    .min(1, {
+      error: 'Variant cannot be empty',
+    }),
+
   // Purchase date - accepts dd/mm/yy format and converts to Date
   purchaseDate: z
     .string()
@@ -577,7 +620,14 @@ export const createBagStepThreeSchema = z.object({
 export type TCreateBagStepThree = z.infer<typeof createBagStepThreeSchema>;
 
 export const createBagStepFourSchema = z.object({
-  waitingTime: z.string().optional(),
+  waitingTime: z
+    .enum(
+      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
+      {
+        error: 'Please select a valid waiting time option.',
+      }
+    )
+    .optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
 });

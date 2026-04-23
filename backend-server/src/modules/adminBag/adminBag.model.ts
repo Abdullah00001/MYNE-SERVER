@@ -38,6 +38,7 @@ export interface IAdminBags {
   size: string;
   condition: string;
   image: string;
+  variant: string;
   priceStatus: TAdminBagPriceStatus;
   user: Schema.Types.ObjectId;
 }
@@ -77,6 +78,7 @@ const AdminBagSchema = new Schema<IAdminBags>(
     size: { type: String, required: true },
     condition: { type: String, default: null },
     image: { type: String, required: true },
+    variant: { type: String, required: true },
     priceStatus: PriceStatusSchema,
     user: { type: Types.ObjectId, ref: 'User', required: true },
   },

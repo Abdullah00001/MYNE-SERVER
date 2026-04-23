@@ -27,6 +27,7 @@ export interface IAdminBags {
   bagModel: Schema.Types.ObjectId;
   bagColor: string;
   material: string;
+  variant: string;
   hardwareColor: string;
   size: string;
   condition: string;

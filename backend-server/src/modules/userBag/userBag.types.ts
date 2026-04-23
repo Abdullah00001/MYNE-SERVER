@@ -49,6 +49,7 @@ export interface IUserBag {
   purchasePrice: number;
   sellerName: string;
   currency: string;
+  variant: string;
   purchaseLocation: string;
   purchaseDate: Date;
   purchaseType: string;
