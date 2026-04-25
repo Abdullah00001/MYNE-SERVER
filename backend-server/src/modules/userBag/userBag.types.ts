@@ -44,6 +44,7 @@ export interface IUserBag {
   hardwareColor: string;
   size: string;
   priceStatus: TAdminBagPriceStatus;
+  wearChecklist: string[];
   // productionYear: number;
   condition: string;
   purchasePrice: number;

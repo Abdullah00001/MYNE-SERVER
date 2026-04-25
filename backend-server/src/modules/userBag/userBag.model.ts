@@ -79,6 +79,7 @@ const UserCollectionSchema = new Schema<IUserBag>(
       required: true,
       index: true,
     },
+    wearChecklist: [{ type: String }],
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',

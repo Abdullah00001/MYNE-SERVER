@@ -29,7 +29,17 @@ export const CreateCollectionSchema = z.object({
     .min(1, {
       error: 'Bag color cannot be empty',
     }),
-
+  wearChecklist: z
+    .array(
+      z
+        .string({
+          error: 'Each wear checklist item must be a string',
+        })
+        .min(1, {
+          error: 'Wear checklist items cannot be empty',
+        })
+    )
+    .optional(),
   material: z
     .string({
       error: 'Leather type is required',
@@ -85,7 +95,8 @@ export const CreateCollectionSchema = z.object({
     })
     .min(0, {
       error: 'Purchase price cannot be negative',
-    }),
+    })
+    .optional(),
 
   currency: z
     .string({
@@ -96,7 +107,8 @@ export const CreateCollectionSchema = z.object({
     })
     .max(3, {
       error: 'Currency code should be 3 characters or less (e.g., USD, EUR)',
-    }),
+    })
+    .optional(),
 
   purchaseLocation: z
     .string({
@@ -104,7 +116,8 @@ export const CreateCollectionSchema = z.object({
     })
     .min(1, {
       error: 'Purchase location cannot be empty',
-    }),
+    })
+    .optional(),
 
   sellerName: z
     .string({
@@ -112,7 +125,8 @@ export const CreateCollectionSchema = z.object({
     })
     .min(1, {
       error: 'Seller name cannot be empty',
-    }),
+    })
+    .optional(),
 
   // Purchase date - accepts dd/mm/yy format and converts to Date
   purchaseDate: z
@@ -127,7 +141,8 @@ export const CreateCollectionSchema = z.object({
       // Assuming yy is 20yy (2000s)
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
-    }),
+    })
+    .optional(),
   variant: z
     .string({
       error: 'Variant is required',
@@ -141,7 +156,8 @@ export const CreateCollectionSchema = z.object({
     })
     .min(1, {
       error: 'Purchase type cannot be empty',
-    }).optional(),
+    })
+    .optional(),
 
   // Optional fields - also coerced if provided
   waitingTime: z
@@ -233,8 +249,19 @@ export const baseUpdateSchema = z.object({
     })
     .min(0, {
       error: 'Purchase price cannot be negative',
-    }).optional(),
-
+    })
+    .optional(),
+  wearChecklist: z
+    .array(
+      z
+        .string({
+          error: 'Each wear checklist item must be a string',
+        })
+        .min(1, {
+          error: 'Wear checklist items cannot be empty',
+        })
+    )
+    .optional(),
   // Currency
   currency: z
     .string({
@@ -245,7 +272,8 @@ export const baseUpdateSchema = z.object({
     })
     .max(3, {
       error: 'Currency code should be 3 characters or less (e.g., USD, EUR)',
-    }),
+    })
+    .optional(),
 
   // Purchase location
   purchaseLocation: z
@@ -254,7 +282,8 @@ export const baseUpdateSchema = z.object({
     })
     .min(1, {
       error: 'Purchase location cannot be empty',
-    }),
+    })
+    .optional(),
 
   sellerName: z
     .string({
@@ -262,7 +291,8 @@ export const baseUpdateSchema = z.object({
     })
     .min(1, {
       error: 'Seller name cannot be empty',
-    }),
+    })
+    .optional(),
 
   variant: z
     .string({
@@ -283,7 +313,8 @@ export const baseUpdateSchema = z.object({
       const [day, month, year] = val.split('/');
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
-    }),
+    })
+    .optional(),
 
   // Purchase type
   purchaseType: z
@@ -292,7 +323,8 @@ export const baseUpdateSchema = z.object({
     })
     .min(1, {
       error: 'Purchase type cannot be empty',
-    }),
+    })
+    .optional(),
 
   // Archived status - with coercion for form-data
   isArchived: z.coerce.boolean({
@@ -487,6 +519,17 @@ export const createBagStepOneSchema = z.object({
     .min(1, {
       error: 'Bag hardware color cannot be empty',
     }),
+  wearChecklist: z
+    .array(
+      z
+        .string({
+          error: 'Each wear checklist item must be a string',
+        })
+        .min(1, {
+          error: 'Wear checklist items cannot be empty',
+        })
+    )
+    .optional(),
   size: z
     .string({
       error: 'Size is required',
@@ -543,7 +586,8 @@ export const createBagStepTwoSchema = z.object({
     })
     .min(0, {
       error: 'Purchase price cannot be negative',
-    }),
+    })
+    .optional(),
 
   currency: z
     .string({
@@ -562,15 +606,27 @@ export const createBagStepTwoSchema = z.object({
     })
     .min(1, {
       error: 'Purchase location cannot be empty',
-    }),
-
+    })
+    .optional(),
+  wearChecklist: z
+    .array(
+      z
+        .string({
+          error: 'Each wear checklist item must be a string',
+        })
+        .min(1, {
+          error: 'Wear checklist items cannot be empty',
+        })
+    )
+    .optional(),
   sellerName: z
     .string({
       error: 'Seller name is required',
     })
     .min(1, {
       error: 'Seller name cannot be empty',
-    }),
+    })
+    .optional(),
 
   variant: z
     .string({
@@ -593,7 +649,8 @@ export const createBagStepTwoSchema = z.object({
       // Assuming yy is 20yy (2000s)
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
-    }),
+    })
+    .optional(),
 
   purchaseType: z
     .string({
