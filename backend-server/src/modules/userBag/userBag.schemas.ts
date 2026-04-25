@@ -628,14 +628,6 @@ export const createBagStepTwoSchema = z.object({
     })
     .optional(),
 
-  variant: z
-    .string({
-      error: 'Variant is required',
-    })
-    .min(1, {
-      error: 'Variant cannot be empty',
-    }),
-
   // Purchase date - accepts dd/mm/yy format and converts to Date
   purchaseDate: z
     .string()
