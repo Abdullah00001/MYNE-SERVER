@@ -7,8 +7,8 @@ import asyncio
 from bson import ObjectId
 from datetime import datetime
 from app.services.openai_service import identify_bag
-from app.services.serp_service import fetch_bag_image
-from app.services.price_service import fetch_fresh_price, fetch_price_history
+from app.services.serp_service import fetch_bag_image, fetch_price_history_serp
+from app.services.price_service import fetch_fresh_price
 from app.database import usercollections, db
 
 router = APIRouter()
@@ -54,10 +54,12 @@ async def identify_upload(
         }
 
     enriched_matches = []
-    for m in matches:
-        enriched = await enrich_match(m)
-        enriched_matches.append(enriched)
-        await asyncio.sleep(0.3)
+    # for m in matches:
+    #     enriched = await enrich_match(m)
+    #     enriched_matches.append(enriched)
+    #     await asyncio.sleep(0.3)
+
+    enriched_matches = await asyncio.gather(*[enrich_match(m) for m in matches])
 
     return {
         "status": 200,
@@ -81,7 +83,8 @@ async def confirm_bag(
     size: str = "",
     year: str = "",
     image_url: str = "",
-    ai_matches: list = []
+    ai_matches: list = None
+    # then inside: ai_matches = ai_matches or []
 ):
     # 1. Fetch price now that user has selected
     price_data = await fetch_fresh_price(brand, model, color, condition)
@@ -117,12 +120,13 @@ async def confirm_bag(
         "hardware_color": hardware,
         "size": size,
         "price_status": {
-            "trend": price_data["trend"],
-            "change_percentage": price_data["change_percentage"],
-            "current_value": price_data["current_value"],
-            "currency": price_data["currency"]
+            # ✅ Use .get() with defaults
+            "trend": price_data.get("trend", "stable"),
+            "change_percentage": price_data.get("change_percentage", 0),
+            "current_value": price_data.get("current_value", 0),
+            "currency": price_data.get("currency", "EUR")
         },
-        "production_year": int(year.split("–")[0]) if year and "–" in year else None,
+        "production_year": int(year[:4]) if year and year[:4].isdigit() else None,
         "condition": condition,
         "purchase_info": None,
         "notes": None,
@@ -205,7 +209,7 @@ async def get_price(req: ConfirmBagRequest):
     )
 
     # 2. then fetch history using current price
-    history_data = await fetch_price_history(
+    history_data = await fetch_price_history_serp(
         req.brand, req.model, req.color,
         req.leather, req.size, req.condition,
         current_price=price_data["current_value"]

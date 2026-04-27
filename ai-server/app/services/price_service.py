@@ -1,23 +1,25 @@
 import json
 import asyncio
-import google.generativeai as genai
+import httpx
+from app.config import OPENAI_API_KEY
+import os
+from app.services.serp_service import fetch_comparable_sales, fetch_prices_serpapi, fetch_ebay_prices
 
-from app.services.serp_service import (
-    fetch_prices_serpapi,
-    fetch_comparable_sales,
-    fetch_ebay_prices
-)
+# Assume KNOWLEDGE_BASE is imported or read from knowledge.txt
+# with open("knowledge.txt", "r") as f: KNOWLEDGE_BASE = f.read()
 
-# =========================
-# GEMINI CONFIG
-# =========================
-genai.configure(api_key="GEMINI_API_KEY")
-model = genai.GenerativeModel("gemini-1.5-pro")
+BASE_DIR = os.path.dirname(__file__)
+KNOWLEDGE_PATH = os.path.join(BASE_DIR, "knowledge.txt")
+
+# Load the file
+if os.path.exists(KNOWLEDGE_PATH):
+    with open(KNOWLEDGE_PATH, "r", encoding="utf-8") as f:
+        KNOWLEDGE_BASE = f.read()
+else:
+    # Fallback or error if file is missing
+    KNOWLEDGE_BASE = "Knowledge base file not found."
 
 
-# =========================
-# CONDITION MULTIPLIER
-# =========================
 CONDITION_MULTIPLIER = {
     "New": 1.15,
     "Excellent": 1.00,
@@ -28,266 +30,133 @@ CONDITION_MULTIPLIER = {
 }
 
 
-# =========================
-# GPT (GEMINI) PRICE FALLBACK
-# =========================
-async def fetch_price_gemini(
-    brand: str,
-    model_name: str,
-    color: str,
-    condition: str,
-    leather: str = "",
-    hardware: str = "",
-    size: str = "",
-    special_variant: str = "Standard",
-    stamp_year: str = ""
-) -> dict:
+def calculate_weighted_average(raw_prices, ebay_sold, ebay_listed):
+    """Calculates a weighted mean across sources correctly."""
+    def mean(data): return sum(data) / len(data) if data else 0
 
+    avg_raw = mean(raw_prices)
+    avg_sold = mean(ebay_sold)
+    avg_listed = mean(ebay_listed)
+
+    # Weighting: Sold data is king (60%), Listed is secondary (20%), Web prices (20%)
+    weights = {"sold": 0.6, "listed": 0.2, "web": 0.2}
+
+    # If a source is missing, re-distribute weights or handle gracefully
+    total_weight = 0
+    final_avg = 0
+
+    if avg_sold:
+        final_avg += avg_sold * weights["sold"]
+        total_weight += weights["sold"]
+    if avg_listed:
+        final_avg += avg_listed * weights["listed"]
+        total_weight += weights["listed"]
+    if avg_raw:
+        final_avg += avg_raw * weights["web"]
+        total_weight += weights["web"]
+
+    return final_avg / total_weight if total_weight > 0 else 0
+
+
+async def fetch_price_gemini(brand, model_name, color, condition, leather, hardware, size, special_variant, stamp_year):
     prompt = f"""
-You are a luxury bag market pricing expert.
+    Using your luxury market expertise and the provided REFERENCE KNOWLEDGE:
+    Brand: {brand} | Model: {model_name} | Color: {color} | Leather: {leather} 
+    Hardware: {hardware} | Size: {size} | Condition: {condition} | Year: {stamp_year}
 
-Use ONLY provided information. Do NOT assume external sources.
+    REFERENCE KNOWLEDGE:
+    {KNOWLEDGE_BASE}
 
-Brand: {brand}
-Model: {model_name}
-Color: {color}
-Leather: {leather}
-Hardware: {hardware}
-Size: {size}
-Condition: {condition}
-Variant: {special_variant}
-Year: {stamp_year}
+    Return ONLY JSON. Ensure the 'current_value' reflects the rarity of colors like '{color}'.
+    """
 
-Return ONLY valid JSON:
-
-{{
-  "current_value": number,
-  "currency": "EUR",
-  "trend": "up|down|stable",
-  "change_percentage": number,
-  "price_range": {{"min": number, "max": number}},
-  "retail_price": number or null,
-  "resale_premium": "X% above retail" or null,
-  "source": "estimated",
-  "reasoning": "2-3 sentence explanation",
-  "condition_impact": "{condition} condition applied",
-  "comparable_sales": []
-}}
-"""
-
-    def call_gemini():
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.2,
-                "max_output_tokens": 1200
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o",
+                "max_tokens": 800,
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "user", "content": prompt}]
             }
         )
-        return response.text
-
-    text = await asyncio.to_thread(call_gemini)
-
-    try:
-        return json.loads(text)
-    except:
-        return {
-            "current_value": 0,
-            "currency": "EUR",
-            "trend": "stable",
-            "change_percentage": 0,
-            "price_range": {"min": 0, "max": 0},
-            "retail_price": None,
-            "resale_premium": None,
-            "source": "error",
-            "reasoning": "Failed to parse Gemini output",
-            "condition_impact": condition,
-            "comparable_sales": []
-        }
+        res.raise_for_status()
+        data = res.json()
+        return json.loads(data["choices"][0]["message"]["content"])
 
 
-# =========================
-# CLEAN PRICES
-# =========================
-def clean_prices(prices: list) -> list:
-    if not prices:
-        return []
-
-    prices = sorted(prices)
-    q1 = prices[len(prices)//4]
-    q3 = prices[(len(prices)*3)//4]
-    iqr = q3 - q1
-
-    lower = q1 - 1.5 * iqr
-    upper = q3 + 1.5 * iqr
-
-    return [p for p in prices if lower <= p <= upper]
-
-
-# =========================
-# MAIN PRICE ENGINE
-# =========================
-async def fetch_fresh_price(
-    brand,
-    model,
-    color,
-    condition,
-    leather="",
-    hardware="",
-    size="",
-    special_variant="Standard",
-    stamp_year="",
-    is_bicolor=False,
-    is_hss=False,
-    secondary_color=""
-):
+async def fetch_fresh_price(brand, model, color, condition, leather="", hardware="", size="",
+                            special_variant="Standard", stamp_year="", is_bicolor=False,
+                            is_hss=False):
 
     query = f"{brand} {model} {size} {leather} {color} bag price"
 
-    # =========================
-    # 1. FETCH DATA SOURCES
-    # =========================
-    raw_prices, real_sales, ebay_results = await asyncio.gather(
-        fetch_prices_serpapi(query),
-        fetch_comparable_sales(brand, model, color, leather, size),
-        fetch_ebay_prices(query)
-    )
+    # 1. FETCH DATA
+    raw_prices = await fetch_prices_serpapi(query)
+    real_sales = await fetch_comparable_sales(brand, model, color, leather, size)
+    ebay_results = await fetch_ebay_prices(query)
 
-    ebay_sold = [r["price"] for r in ebay_results if r.get("type") == "sold"]
-    ebay_listed = [r["price"]
-                   for r in ebay_results if r.get("type") == "listed"]
+    # Since fetch_ebay_prices doesn't distinguish sold/listed, treat all as listed:
+    ebay_listed = [r["price"] for r in ebay_results if "price" in r]
+    ebay_sold = []  # or use fetch_ebay_sold_prices separately
 
-    # weighted pricing
-    weighted_prices = (
-        [p * 0.3 for p in raw_prices] +
-        [p * 0.7 for p in ebay_sold] +
-        [p * 0.2 for p in ebay_listed]
-    )
+    # 2. CORRECT WEIGHTED MATH
+    base_price = calculate_weighted_average(raw_prices, ebay_sold, ebay_listed)
 
-    all_prices = raw_prices + ebay_sold + ebay_listed
-
-    # =========================
-    # 2. CONDITION MULTIPLIER
-    # =========================
+    # 3. APPLY MULTIPLIERS (Logic refined by Brand)
     condition_factor = CONDITION_MULTIPLIER.get(condition, 1.0)
-
-    # =========================
-    # 3. SPECIAL VARIANT MULTIPLIER
-    # =========================
     special_multiplier = 1.0
 
-    if is_hss:
-        special_multiplier *= 2.0
+    if is_hss and brand == "Hermes":
+        special_multiplier *= 1.8  # HSS Premium
+    elif is_bicolor:
+        special_multiplier *= 1.15  # Standard Bicolor Premium
 
-    if is_bicolor:
-        special_multiplier *= 1.3
+    # 4. FALLBACK
+    if base_price == 0 or (len(raw_prices) + len(ebay_sold)) < 2:
+        return await fetch_price_gemini(brand, model, color, condition, leather, hardware, size, special_variant, stamp_year)
 
-    # =========================
-    # 4. FALLBACK IF NO DATA
-    # =========================
-    if len(all_prices) < 3:
-        return await fetch_price_gemini(
-            brand, model, color, condition,
-            leather, hardware, size,
-            special_variant, stamp_year
-        )
+    final_calculated_price = base_price * condition_factor * special_multiplier
 
-    # =========================
-    # 5. CLEAN PRICES
-    # =========================
-    cleaned = clean_prices(weighted_prices)
-
-    if len(cleaned) < 3:
-        cleaned = weighted_prices
-
-    base_price = sum(cleaned) / len(cleaned)
-
-    final_price = base_price * condition_factor * special_multiplier
-
-    # =========================
-    # 6. GEMINI REFINEMENT
-    # =========================
+    # 5. GEMINI REFINEMENT (The "Expert Review")
     metadata = {
+        "calculated_price": final_calculated_price,
         "brand": brand,
-        "model": model,
         "color": color,
-        "condition": condition,
         "leather": leather,
-        "size": size,
-        "ebay_listings": ebay_results,
-        "real_comparable_sales": real_sales,
-        "currency": "EUR",
-        "condition_factor": condition_factor,
-        "special_multiplier": special_multiplier,
-        "base_price": base_price,
-        "final_price": final_price
+        "condition": condition,
+        "ebay_count": len(ebay_sold),
+        "knowledge_context": "Check color rarity for " + color
     }
 
-    def call_gemini():
-        prompt = f"""
-You are a luxury resale pricing expert.
+    expert_prompt = f"""
+    Review this price: {final_calculated_price} EUR.
+    Based on KNOWLEDGE_BASE, is '{color}' a high-premium color (like Rouge Cabernet or Rose Sakura)? 
+    Adjust the final_value if the base market data doesn't account for color rarity.
+    
+    DATA: {json.dumps(metadata)}
+    KNOWLEDGE: {KNOWLEDGE_BASE}
+    
+    Return JSON with fields: current_value, reasoning, trend.
+    """
 
-Base price: {base_price}
-Final adjusted price: {final_price}
-
-Metadata:
-{json.dumps(metadata, indent=2)}
-
-Return ONLY JSON:
-{{
-  "current_value": number,
-  "currency": "EUR",
-  "trend": "up|down|stable",
-  "change_percentage": number,
-  "price_range": {{"min": number, "max": number}},
-  "retail_price": null,
-  "resale_premium": null,
-  "source": "hybrid model",
-  "reasoning": "2-3 sentence explanation",
-  "condition_impact": "{condition} condition applied",
-  "comparable_sales": []
-}}
-"""
-
-        response = model.generate_content(prompt)
-        return response.text
-
-    result_text = await asyncio.to_thread(call_gemini)
-
-    try:
-        result = json.loads(result_text)
-    except:
-        result = {
-            "current_value": final_price,
-            "currency": "EUR",
-            "trend": "stable",
-            "change_percentage": 0,
-            "price_range": {
-                "min": final_price * 0.9,
-                "max": final_price * 1.1
-            },
-            "source": "fallback",
-            "reasoning": "Fallback due to parsing error",
-            "condition_impact": condition,
-            "comparable_sales": []
-        }
-
-    # =========================
-    # 7. FINAL OUTPUT
-    # =========================
-    return {
-        "current_value": result.get("current_value", final_price),
-        "currency": "EUR",
-        "trend": result.get("trend", "stable"),
-        "change_percentage": result.get("change_percentage", 0.0),
-        "price_range": result.get(
-            "price_range",
-            {"min": final_price * 0.9, "max": final_price * 1.1}
-        ),
-        "retail_price": result.get("retail_price"),
-        "resale_premium": result.get("resale_premium"),
-        "source": result.get("source", "hybrid"),
-        "sample_count": len(cleaned),
-        "reasoning": result.get("reasoning"),
-        "condition_impact": result.get("condition_impact"),
-        "comparable_sales": result.get("comparable_sales", [])
-    }
+    async with httpx.AsyncClient(timeout=30) as http_client:
+        res = await http_client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o",
+                "max_tokens": 500,
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "user", "content": expert_prompt}]
+            }
+        )
+        res.raise_for_status()
+        data = res.json()
+        result = json.loads(data["choices"][0]["message"]["content"])
+    return result

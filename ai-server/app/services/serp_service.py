@@ -204,7 +204,7 @@ async def fetch_bag_image(query: str) -> str:
         return {"thumbnailUrl": "", "imageUrl": ""}
     except Exception as e:
         print(f"fetch_bag_image failed: {e}")
-        return ""
+        return {"thumbnailUrl": "", "imageUrl": ""}  # consistent on error too
 
 
 async def fetch_comparable_sales(brand: str, model: str, color: str, leather: str, size: str) -> list:
@@ -294,9 +294,13 @@ async def fetch_price_history_serp(brand: str, model: str, color: str, leather: 
             return None
 
     results = []
-    for m in months:
-        result = await fetch_month(m)
-        if result:
-            results.append(result)
-        await asyncio.sleep(0.3)
-    return results
+    sem = asyncio.Semaphore(3)  # max 3 concurrent
+
+    async def fetch_with_limit(m):
+        async with sem:
+            result = await fetch_month(m)
+            await asyncio.sleep(0.3)
+            return result
+
+    results = await asyncio.gather(*[fetch_with_limit(m) for m in months])
+    return [r for r in results if r]
