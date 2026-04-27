@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import uuid
 from fastapi import APIRouter, HTTPException, File, UploadFile
 import base64
@@ -7,8 +7,8 @@ import asyncio
 from bson import ObjectId
 from datetime import datetime
 from app.services.openai_service import identify_bag
-from app.services.serp_service import fetch_bag_image, fetch_price_history_serp
-from app.services.price_service import fetch_fresh_price
+from app.services.serp_service import fetch_bag_image
+from app.services.price_service import get_full_valuation   # ← single entry point
 from app.database import usercollections, db
 
 router = APIRouter()
@@ -22,7 +22,12 @@ class ConfirmBagRequest(BaseModel):
     leather: str = ""
     hardware: str = ""
     size: str = ""
+    special_variant: str = "Standard"
 
+
+# ─────────────────────────────────────────
+# IDENTIFY FROM PHOTO
+# ─────────────────────────────────────────
 
 @router.post("/identify/upload")
 async def identify_upload(
@@ -37,40 +42,37 @@ async def identify_upload(
         photos.append(base64.b64encode(contents).decode("utf-8"))
         photo_mimes.append(file.content_type)
 
-    # 2. Call OpenAI → 4 matches
+    # 2. Call OpenAI Vision → up to 4 matches
     matches = await identify_bag(photos, photo_mimes)
     if not matches:
         raise HTTPException(status_code=422, detail="No matches returned")
 
     # 3. Fetch image for each match in parallel
     async def enrich_match(match):
-        query = match.get(
-            "imageSearchQuery") or f"{match.get('brand')} {match.get('model')} {match.get('detectedColor')}"
+        query = match.get("imageSearchQuery") or \
+            f"{match.get('brand')} {match.get('model')} {match.get('detectedColor')}"
         image_data = await fetch_bag_image(query)
         return {
             **match,
             "thumbnailUrl": image_data.get("thumbnailUrl", ""),
-            "imageUrl": image_data.get("imageUrl", "")
+            "imageUrl":     image_data.get("imageUrl", "")
         }
-
-    enriched_matches = []
-    # for m in matches:
-    #     enriched = await enrich_match(m)
-    #     enriched_matches.append(enriched)
-    #     await asyncio.sleep(0.3)
 
     enriched_matches = await asyncio.gather(*[enrich_match(m) for m in matches])
 
-    # 3. Images already attached by Vision in identify_bag()
     return {
         "status": 200,
         "success": True,
         "data": {
             "user_id": user_id,
-            "matches": enriched_matches  # 4 matches, each with image_url
+            "matches": enriched_matches
         }
     }
 
+
+# ─────────────────────────────────────────
+# CONFIRM + SAVE BAG
+# ─────────────────────────────────────────
 
 @router.post("/bags/confirm")
 async def confirm_bag(
@@ -84,13 +86,24 @@ async def confirm_bag(
     size: str = "",
     year: str = "",
     image_url: str = "",
+    special_variant: str = "Standard",
     ai_matches: list = None
-    # then inside: ai_matches = ai_matches or []
 ):
-    # 1. Fetch price now that user has selected
-    price_data = await fetch_fresh_price(brand, model, color, condition)
+    ai_matches = ai_matches or []
 
-    # 2. Resolve or create brand/model
+    # 1. Get full valuation (current price + history)
+    valuation = await get_full_valuation(
+        brand=brand,
+        model=model,
+        color=color,
+        leather=leather,
+        hardware=hardware,
+        size=size,
+        condition=condition,
+        special_variant=special_variant,
+    )
+
+    # 2. Resolve or create brand document
     brand_doc = await db["brands"].find_one({"name": {"$regex": brand, "$options": "i"}})
     if not brand_doc:
         brand_result = await db["brands"].insert_one({"name": brand, "created_at": datetime.utcnow()})
@@ -98,6 +111,7 @@ async def confirm_bag(
     else:
         brand_id = str(brand_doc["_id"])
 
+    # 3. Resolve or create model document
     model_doc = await db["models"].find_one({"name": {"$regex": model, "$options": "i"}})
     if not model_doc:
         model_result = await db["models"].insert_one({
@@ -109,37 +123,39 @@ async def confirm_bag(
     else:
         model_id = str(model_doc["_id"])
 
-    # 3. Save bag
+    # 4. Build and save bag document
     doc = {
-        "brand_id": brand_id,
-        "model_id": model_id,
-        "user_id": user_id,
-        "primary_image": image_url,
-        "images": [],
-        "bag_color": color,
-        "leather_type": leather,
+        "brand_id":       brand_id,
+        "model_id":       model_id,
+        "user_id":        user_id,
+        "primary_image":  image_url,
+        "images":         [],
+        "bag_color":      color,
+        "leather_type":   leather,
         "hardware_color": hardware,
-        "size": size,
-        "price_status": {
-            # ✅ Use .get() with defaults
-            "trend": price_data.get("trend", "stable"),
-            "change_percentage": price_data.get("change_percentage", 0),
-            "current_value": price_data.get("current_value", 0),
-            "currency": price_data.get("currency", "EUR")
-        },
+        "size":           size,
+        "condition":      condition,
         "production_year": int(year[:4]) if year and year[:4].isdigit() else None,
-        "condition": condition,
-        "purchase_info": None,
-        "notes": None,
-        "receipt": None,
-        "is_archived": False,
-        "publish_status": "pending",
-        "last_price_updated_at": datetime.utcnow(),
-        "created_at": datetime.utcnow(),
-        "ai_matches": ai_matches,
-        "price_source": price_data.get("source"),
-        "price_sample_count": price_data.get("sample_count"),
-        "price_range": price_data.get("price_range")
+        "price_status": {
+            "current_value":      valuation.get("current_price", 0),
+            "currency":           "EUR",
+            "confidence":         valuation.get("confidence", "low"),
+            "trend":              valuation.get("trend", "stable"),
+            "trend_note":         valuation.get("trend_note", ""),
+            "color_premium":      valuation.get("color_premium", False),
+        },
+        "price_history":          valuation.get("history", []),
+        "price_sources":          valuation.get("sources_used", []),
+        "price_data_points":      valuation.get("data_points", 0),
+        "price_reasoning":        valuation.get("reasoning", ""),
+        "last_price_updated_at":  datetime.utcnow(),
+        "purchase_info":          None,
+        "notes":                  None,
+        "receipt":                None,
+        "is_archived":            False,
+        "publish_status":         "pending",
+        "created_at":             datetime.utcnow(),
+        "ai_matches":             ai_matches,
     }
 
     result = await usercollections.insert_one(doc)
@@ -148,18 +164,49 @@ async def confirm_bag(
         "status": 200,
         "success": True,
         "data": {
-            "id": str(result.inserted_id),
-            "brand": brand,
-            "model": model,
-            "brand_id": brand_id,
-            "model_id": model_id,
+            "id":           str(result.inserted_id),
+            "brand":        brand,
+            "model":        model,
+            "brand_id":     brand_id,
+            "model_id":     model_id,
             "price_status": doc["price_status"],
-            "price_source": price_data.get("source"),
-            "price_range": price_data.get("price_range"),
-            "image_url": image_url
+            "price_history": doc["price_history"],
+            "image_url":    image_url
         }
     }
 
+
+# ─────────────────────────────────────────
+# GET PRICE + HISTORY (standalone endpoint)
+# ─────────────────────────────────────────
+
+@router.post("/bags/price")
+async def get_price(req: ConfirmBagRequest):
+    """
+    Returns current market price + 10-month price history for a bag.
+    Does NOT save to database — use /bags/confirm for that.
+    """
+    valuation = await get_full_valuation(
+        brand=req.brand,
+        model=req.model,
+        color=req.color,
+        leather=req.leather,
+        hardware=req.hardware,
+        size=req.size,
+        condition=req.condition,
+        special_variant=req.special_variant,
+    )
+
+    return {
+        "status": 200,
+        "success": True,
+        "data": valuation   # already has current_price + history + trend + reasoning
+    }
+
+
+# ─────────────────────────────────────────
+# CRUD
+# ─────────────────────────────────────────
 
 @router.get("/bags")
 async def list_bags():
@@ -198,29 +245,4 @@ async def health():
         "success": True,
         "message": "Server Is Running",
         "traceId": str(uuid.uuid4())
-    }
-
-
-@router.post("/bags/price")
-async def get_price(req: ConfirmBagRequest):
-    # 1. fetch current price first
-    price_data = await fetch_fresh_price(
-        req.brand, req.model, req.color, req.condition,
-        req.leather, req.hardware, req.size
-    )
-
-    # 2. then fetch history using current price
-    history_data = await fetch_price_history_serp(
-        req.brand, req.model, req.color,
-        req.leather, req.size, req.condition,
-        current_price=price_data["current_value"]
-    )
-
-    return {
-        "status": 200,
-        "success": True,
-        "data": {
-            **price_data,
-            "price_history": history_data
-        }
     }

@@ -1,83 +1,47 @@
 import json
-import asyncio
 import httpx
 from app.config import OPENAI_API_KEY
-import os
-from app.services.serp_service import fetch_comparable_sales, fetch_prices_serpapi, fetch_ebay_prices
+from app.services.serp_service import fetch_all_market_prices
+from datetime import datetime
 
-# Assume KNOWLEDGE_BASE is imported or read from knowledge.txt
-# with open("knowledge.txt", "r") as f: KNOWLEDGE_BASE = f.read()
-
-BASE_DIR = os.path.dirname(__file__)
-KNOWLEDGE_PATH = os.path.join(BASE_DIR, "knowledge.txt")
-
-# Load the file
-if os.path.exists(KNOWLEDGE_PATH):
-    with open(KNOWLEDGE_PATH, "r", encoding="utf-8") as f:
-        KNOWLEDGE_BASE = f.read()
-else:
-    # Fallback or error if file is missing
-    KNOWLEDGE_BASE = "Knowledge base file not found."
-
+# ─────────────────────────────────────────
+# CONDITION MULTIPLIERS
+# ─────────────────────────────────────────
 
 CONDITION_MULTIPLIER = {
-    "New": 1.15,
+    "New":       1.15,
     "Excellent": 1.00,
     "Very Good": 0.88,
-    "Good": 0.75,
-    "Fair": 0.60,
-    "Poor": 0.45
+    "Good":      0.75,
+    "Fair":      0.60,
+    "Poor":      0.45,
 }
 
+SPECIAL_MULTIPLIER = {
+    "HSS":      1.80,   # Hermes Special Order
+    "Bicolor":  1.15,
+    "Standard": 1.00,
+}
 
-def calculate_weighted_average(raw_prices, ebay_sold, ebay_listed):
-    """Calculates a weighted mean across sources correctly."""
-    def mean(data): return sum(data) / len(data) if data else 0
+today = datetime.today().strftime("%B %Y")  # e.g. "April 2026"
 
-    avg_raw = mean(raw_prices)
-    avg_sold = mean(ebay_sold)
-    avg_listed = mean(ebay_listed)
-
-    # Weighting: Sold data is king (60%), Listed is secondary (20%), Web prices (20%)
-    weights = {"sold": 0.6, "listed": 0.2, "web": 0.2}
-
-    # If a source is missing, re-distribute weights or handle gracefully
-    total_weight = 0
-    final_avg = 0
-
-    if avg_sold:
-        final_avg += avg_sold * weights["sold"]
-        total_weight += weights["sold"]
-    if avg_listed:
-        final_avg += avg_listed * weights["listed"]
-        total_weight += weights["listed"]
-    if avg_raw:
-        final_avg += avg_raw * weights["web"]
-        total_weight += weights["web"]
-
-    return final_avg / total_weight if total_weight > 0 else 0
+# ─────────────────────────────────────────
+# GPT HELPER
+# ─────────────────────────────────────────
 
 
-async def fetch_price_gemini(brand, model_name, color, condition, leather, hardware, size, special_variant, stamp_year):
-    prompt = f"""
-    Using your luxury market expertise and the provided REFERENCE KNOWLEDGE:
-    Brand: {brand} | Model: {model_name} | Color: {color} | Leather: {leather} 
-    Hardware: {hardware} | Size: {size} | Condition: {condition} | Year: {stamp_year}
-
-    REFERENCE KNOWLEDGE:
-    {KNOWLEDGE_BASE}
-
-    Return ONLY JSON. Ensure the 'current_value' reflects the rarity of colors like '{color}'.
-    """
-
-    async with httpx.AsyncClient(timeout=30) as client:
+async def call_gpt(prompt: str, max_tokens: int = 800) -> dict:
+    """Single reusable GPT-4o call. Always returns JSON."""
+    async with httpx.AsyncClient(timeout=40) as client:
         res = await client.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
-                     "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json"
+            },
             json={
                 "model": "gpt-4o",
-                "max_tokens": 800,
+                "max_tokens": max_tokens,
                 "temperature": 0.1,
                 "response_format": {"type": "json_object"},
                 "messages": [{"role": "user", "content": prompt}]
@@ -88,75 +52,209 @@ async def fetch_price_gemini(brand, model_name, color, condition, leather, hardw
         return json.loads(data["choices"][0]["message"]["content"])
 
 
-async def fetch_fresh_price(brand, model, color, condition, leather="", hardware="", size="",
-                            special_variant="Standard", stamp_year="", is_bicolor=False,
-                            is_hss=False):
+# ─────────────────────────────────────────
+# CURRENT PRICE
+# ─────────────────────────────────────────
 
-    query = f"{brand} {model} {size} {leather} {color} bag price"
-
-    # 1. FETCH DATA
-    raw_prices = await fetch_prices_serpapi(query)
-    real_sales = await fetch_comparable_sales(brand, model, color, leather, size)
-    ebay_results = await fetch_ebay_prices(query)
-
-    # Since fetch_ebay_prices doesn't distinguish sold/listed, treat all as listed:
-    ebay_listed = [r["price"] for r in ebay_results if "price" in r]
-    ebay_sold = []  # or use fetch_ebay_sold_prices separately
-
-    # 2. CORRECT WEIGHTED MATH
-    base_price = calculate_weighted_average(raw_prices, ebay_sold, ebay_listed)
-
-    # 3. APPLY MULTIPLIERS (Logic refined by Brand)
-    condition_factor = CONDITION_MULTIPLIER.get(condition, 1.0)
-    special_multiplier = 1.0
-
-    if is_hss and brand == "Hermes":
-        special_multiplier *= 1.8  # HSS Premium
-    elif is_bicolor:
-        special_multiplier *= 1.15  # Standard Bicolor Premium
-
-    # 4. FALLBACK
-    if base_price == 0 or (len(raw_prices) + len(ebay_sold)) < 2:
-        return await fetch_price_gemini(brand, model, color, condition, leather, hardware, size, special_variant, stamp_year)
-
-    final_calculated_price = base_price * condition_factor * special_multiplier
-
-    # 5. GEMINI REFINEMENT (The "Expert Review")
-    metadata = {
-        "calculated_price": final_calculated_price,
-        "brand": brand,
-        "color": color,
-        "leather": leather,
-        "condition": condition,
-        "ebay_count": len(ebay_sold),
-        "knowledge_context": "Check color rarity for " + color
-    }
-
-    expert_prompt = f"""
-    Review this price: {final_calculated_price} EUR.
-    Based on KNOWLEDGE_BASE, is '{color}' a high-premium color (like Rouge Cabernet or Rose Sakura)? 
-    Adjust the final_value if the base market data doesn't account for color rarity.
-    
-    DATA: {json.dumps(metadata)}
-    KNOWLEDGE: {KNOWLEDGE_BASE}
-    
-    Return JSON with fields: current_value, reasoning, trend.
+async def get_current_price(
+    brand: str,
+    model: str,
+    color: str,
+    leather: str,
+    hardware: str,
+    size: str,
+    condition: str,
+    special_variant: str = "Standard",
+) -> dict:
+    """
+    Step 1: Fetch real market data from all sources.
+    Step 2: Apply condition + special variant multipliers.
+    Step 3: GPT refines ONLY if real data is thin (< 4 points).
+    Returns: current_price (EUR), confidence, sources_used, reasoning.
     """
 
-    async with httpx.AsyncClient(timeout=30) as http_client:
-        res = await http_client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
-                     "Content-Type": "application/json"},
-            json={
-                "model": "gpt-4o",
-                "max_tokens": 500,
-                "temperature": 0.1,
-                "response_format": {"type": "json_object"},
-                "messages": [{"role": "user", "content": expert_prompt}]
-            }
-        )
-        res.raise_for_status()
-        data = res.json()
-        result = json.loads(data["choices"][0]["message"]["content"])
+    # ── Step 1: Real market data ──────────────────────────
+    market = await fetch_all_market_prices(brand, model, size, leather, color)
+
+    base_price = market["weighted_price"]
+    data_points = market["data_points"]
+    needs_gpt = market["needs_gpt_fallback"]
+
+    sources_used = []
+    if market["retail_prices"]:
+        sources_used.append("Google Shopping (retail)")
+    if market["reseller_prices"]:
+        sources_used.append("Vestiaire/1stDibs/RealReal")
+    if market["ebay_prices"]:
+        sources_used.append("eBay")
+
+    # ── Step 2: Apply multipliers ─────────────────────────
+    condition_factor = CONDITION_MULTIPLIER.get(condition, 1.0)
+    special_factor = SPECIAL_MULTIPLIER.get(special_variant, 1.0)
+
+    # Only apply special multiplier for Hermes HSS
+    if special_variant == "HSS" and brand.lower() not in ["hermès", "hermes"]:
+        special_factor = 1.0
+
+    adjusted_price = round(base_price * condition_factor * special_factor, 2)
+
+    # ── Step 3: GPT fallback / refinement ────────────────
+    if needs_gpt or adjusted_price == 0:
+        prompt = f"""
+You are a luxury handbag pricing expert. Estimate the current resale market price in EUR for:
+
+Brand: {brand}
+Model: {model}
+Color: {color}
+Leather: {leather}
+Hardware: {hardware}
+Size: {size}
+Condition: {condition}
+Special Variant: {special_variant}
+
+{"The following real market prices were found but are limited: " + str(market) if base_price > 0 else "No real market data was found."}
+
+Return ONLY a JSON object with these fields:
+- current_price: number (EUR)
+- confidence: "low" | "medium" | "high"  
+- reasoning: string (1-2 sentences explaining the price)
+- color_premium: boolean (is this color considered rare/premium?)
+        """
+        result = await call_gpt(prompt)
+        result["sources_used"] = sources_used or ["GPT-4o estimate"]
+        result["data_points"] = data_points
+        return result
+
+    # ── Real data was sufficient — return directly ────────
+    return {
+        "current_price": adjusted_price,
+        "confidence": "high" if data_points >= 6 else "medium",
+        "sources_used": sources_used,
+        "data_points": data_points,
+        "reasoning": f"Based on {data_points} real market listings. Condition ({condition}) and variant ({special_variant}) multipliers applied.",
+        "color_premium": False  # GPT not called, so we don't know
+    }
+
+
+# ─────────────────────────────────────────
+# PRICE HISTORY (last 10 months)
+# ─────────────────────────────────────────
+
+async def get_price_history(
+    brand: str,
+    model: str,
+    color: str,
+    leather: str,
+    size: str,
+    current_price: float,
+) -> list[dict]:
+    """
+    Today is {today}. Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month).
+    The history MUST start from June 2025 and end at April 2026. Do not use any other date range.
+    The prices should reflect real luxury market behavior:
+    - Gradual appreciation or depreciation trends (not random jumps)
+    - Seasonal effects if applicable (e.g. slower summer, stronger Q4)
+    - Color/leather rarity premium if this is a sought-after combination
+    - Month-to-month changes should be realistic: typically 1-4% max between adjacent months
+    """
+
+    prompt = f"""
+
+    You are a luxury resale market analyst specializing in {brand} handbags.
+
+    Today is {today}. Given that this bag is currently worth approximately {current_price} EUR:
+
+    Brand: {brand}
+    Model: {model}
+    Color: {color}
+    Leather: {leather}
+    Size: {size}
+    Current Price (today): {current_price} EUR
+
+    Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month).
+    The history MUST start from April 2025 and end at March 2026. Do not use any other date range.
+    The prices should reflect real luxury market behavior:
+    - Gradual appreciation or depreciation trends (not random jumps)
+    - Seasonal effects if applicable (e.g. slower summer, stronger Q4)
+    - Color/leather rarity premium if this is a sought-after combination
+    - Month-to-month changes should be realistic: typically 1-4% max between adjacent months
+
+    Return ONLY a JSON object with:
+    - history: array of exactly 12 objects in chronological order, each with:
+        - month: string formatted as "Mon YYYY" e.g. "Apr 2025", "May 2025" ... "Mar 2026"
+        - price: number in EUR (integer, no decimals)
+    - trend: "appreciating" | "depreciating" | "stable"
+    - trend_note: string (1 sentence about the overall trend)   
+
+    """
+
+    result = await call_gpt(prompt, max_tokens=1000)
     return result
+
+
+# ─────────────────────────────────────────
+# MAIN ENTRY — full valuation
+# ─────────────────────────────────────────
+
+async def get_full_valuation(
+    brand: str,
+    model: str,
+    color: str,
+    leather: str,
+    hardware: str,
+    size: str,
+    condition: str,
+    special_variant: str = "Standard",
+) -> dict:
+    """
+    Full valuation: current price + 10-month history.
+    This is the main function to call from your API endpoint.
+
+    Returns:
+    {
+        "current_price": 9400,
+        "confidence": "high",
+        "sources_used": [...],
+        "data_points": 7,
+        "reasoning": "...",
+        "color_premium": true,
+        "history": [
+            {"month": "Jun 2024", "price": 8600},
+            ...
+        ],
+        "trend": "appreciating",
+        "trend_note": "..."
+    }
+    """
+
+    # Step 1: Get current price
+    current_result = await get_current_price(
+        brand=brand,
+        model=model,
+        color=color,
+        leather=leather,
+        hardware=hardware,
+        size=size,
+        condition=condition,
+        special_variant=special_variant,
+    )
+
+    current_price = current_result.get("current_price", 0)
+
+    # Step 2: Get 10-month history anchored to current price
+    history_result = await get_price_history(
+        brand=brand,
+        model=model,
+        color=color,
+        leather=leather,
+        size=size,
+        current_price=current_price,
+    )
+
+    # Step 3: Merge and return
+    return {
+        **current_result,
+        "history":    history_result.get("history", []),
+        "trend":      history_result.get("trend", "stable"),
+        "trend_note": history_result.get("trend_note", ""),
+    }
