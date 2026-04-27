@@ -48,6 +48,7 @@ export class AdminBagService {
       hardwareColor,
       size,
       condition,
+      variant
     } = payload;
     const filePath = join(__dirname, '../../../public/temp', file);
     const mimeType = extname(filePath);
@@ -63,6 +64,7 @@ export class AdminBagService {
           leather: material,
           hardware: hardwareColor,
           size: size,
+          variant
         }
       );
       const aiData = plainResponse.data?.data;
@@ -80,6 +82,7 @@ export class AdminBagService {
         mimeType,
       });
       const newAdminBag = new AdminBag({
+        variant,
         bagBrand,
         bagModel,
         bagColor,
@@ -277,7 +280,7 @@ export class AdminBagService {
     let bagImage = bag.image;
     try {
       if (file) {
-        if (bagImage) {
+        if (bagImage) { 
           const oldKey = this.systemUtils.extractS3KeyFromUrl(bagImage);
           await this.s3Utils.singleDelete({ key: oldKey });
         }
