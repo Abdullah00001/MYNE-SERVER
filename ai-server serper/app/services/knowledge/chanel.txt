@@ -1,0 +1,149 @@
+=== CHANEL ===
+
+--- MODELS ---
+Classic Flap (Small/Medium/Jumbo/Maxi):
+SHAPE: Structured rectangle, medium depth
+QUILT: Small uniform diamonds
+CLOSURE: CC turn-lock (two C's rotate) ← #1 identifier
+STRAP: Thin chain with leather woven through
+CONFUSED WITH 2.55: lock shape — CC vs rectangular bar
+CONFUSED WITH Boy: chain thickness + clasp type
+SIZES: Small=23cm | Medium=25cm | Jumbo=30cm | Maxi=33cm
+
+2.55 Reissue (224/225/226/227/228):
+SHAPE: Same rectangle as Classic
+QUILT: Diamonds BUT leather looks distressed/aged/wrinkled even when new
+CLOSURE: Rectangular Mademoiselle lock (flat bar, NO CC logo) ← #1 identifier
+STRAP: All-metal chain, no leather weave
+HARDWARE: Aged gold/ruthenium (darker, antique look — not shiny gold)
+BACK: Exterior zip pocket on back
+CONFUSED WITH Classic: rectangular lock vs CC logo
+
+Boy (Small/Medium/Large):
+SHAPE: Chunky rectangle, noticeably THICKER depth than Classic
+QUILT: Diamond or chevron depending on season
+CLOSURE: Push-lock clasp (rectangular button, no CC) ← #1 identifier
+STRAP: Chunky interlocking chain (heavier/thicker than Classic)
+CONFUSED WITH Classic: chunky chain + push clasp vs thin chain + CC lock
+SIZES: Small=20cm | Medium=25cm | Large=30cm
+
+Mini Rectangular:
+SHAPE: Tiny Classic Flap, landscape orientation
+CLOSURE: CC turn-lock
+STRAP: Chain, wearable long or doubled short
+NOTE: Noticeably tiny — phone + cards only
+
+Mini Square:
+SHAPE: Equal height and width (square proportions)
+CLOSURE: CC turn-lock
+NOTE: Less common than rectangular mini
+
+22 Bag (Small/Medium):
+SHAPE: Soft unstructured hobo, collapses when set down
+CLOSURE: Drawstring at top ← unique among Chanel bags
+HANDLE: Chain top handle
+NOTE: Only Chanel bag with drawstring
+
+19 Bag (Small/Medium/Large):
+SHAPE: Soft relaxed flap, slightly slouchy
+QUILT: OVERSIZED CC logo quilting (much larger than Classic diamonds)
+CLOSURE: CC closure, softer feel than Classic
+STRAP: Mixed chain + thick leather strap
+NOTE: Large quilt pattern is key visual difference from Classic
+
+Coco Handle (Small/Medium):
+SHAPE: Structured boxy
+HANDLES: Short rigid top handle + removable chain strap ← #1 identifier
+CLOSURE: CC turn-lock or zip
+NOTE: Only structured Chanel with rigid top handle
+
+Gabrielle (Small/Medium/Large):
+SHAPE: Soft hobo/shoulder hybrid
+STRAP: Convertible chain system, multiple wear options
+EXTERIOR: Chanel lettering visible on strap hardware
+NOTE: Very versatile strap = key identifier
+
+WOC (Wallet on Chain):
+SHAPE: Flat, wallet-thin, tiny
+SIZE: ~19cm W — unmistakably small
+CLOSURE: CC turn-lock or zip
+STRAP: Delicate chain only
+
+--- LEATHERS (photo identification) ---
+Caviar: Pebbled surface, small uniform round bumps, structured, slight sheen
+  → most common, holds shape, bumps visible even in low-res photos
+
+Lambskin: Perfectly smooth, buttery, slight luminous glow
+  → scratches show as lighter lines, looks almost velvety
+
+Goatskin: Similar to caviar but bumps slightly irregular/flatter, more matte
+  → less uniform than caviar, slightly duller finish
+
+Aged Calfskin (2.55 only): Smooth but intentionally distressed/wrinkled
+  → looks deliberately worn even brand new
+
+Patent: Mirror-like high gloss, strong visible reflections
+
+Tweed: Woven fabric, visible threads, often multicolor
+
+Nylon: Lightweight fabric, matte finish, smooth surface, often quilted and multicolor
+  → used in classic quilted nylon flaps and backpacks
+
+Canvas: Structured fabric, stiffer than jersey, often printed or monogram pattern
+
+Satin: Smooth shiny fabric, evening bag material, reflective but softer than patent
+
+Grosgrain: Ribbed fabric texture, horizontal lines visible, matte finish
+
+Sequined: Covered in small sequins/beads, very reflective, evening style
+
+Jersey/Velvet: Fabric texture, clearly not leather
+
+--- HARDWARE (photo identification) ---
+Gold: Warm yellow-gold, shiny — most classic, highest demand
+Silver: Cool silver-tone
+Ruthenium: Dark grey-black metal, edgy
+Aged Gold: Warm gold but intentionally duller/antique — used on 2.55
+
+CC Turn-lock: Two interlocked C's, rotate mechanism, centered on flap
+Mademoiselle Lock: Flat rectangular horizontal bar, minimal, no logo
+Boy Push-lock: Rectangular architectural button clasp, more industrial
+
+Chain — Thin leather-woven (Classic/19/Coco): gold or silver links + leather strip inside
+Chain — All-metal (2.55/WOC): heavier, no leather, slightly darker
+Chain — Chunky interlocking (Boy): visibly thicker/heavier links
+
+--- COLORS ---
+Noir: Pure flat black — most classic, highest resale
+Blanc: Pure white
+Beige: Warm signature Chanel beige — iconic neutral
+Beige Clair: Lighter/more cream than standard beige
+Dark Beige: Deeper greige-beige
+Caramel: Warm amber-tan
+Burgundy/Wine: Deep red-purple
+Rouge/Red: True vivid red
+Navy: Deep blue
+Forest/Dark Green: Deep rich green
+Emerald: Vivid bright green
+Pink: Warm medium pink
+Blush/Light Pink: Pale soft pink
+Lilac/Lavender: Soft purple (seasonal)
+Champagne: Warm metallic gold
+Silver Metallic: Cool metallic
+Multicolor: Multiple colors like pink yeloow or blue
+Seasonal Tweed: Describe dominant + secondary colors (e.g. cream tweed with black and gold threads)
+
+COLOR CONFUSION:
+Noir vs Navy: In light, navy shows blue tint. Noir shows nothing.
+Beige vs Beige Clair: Clair is noticeably lighter/creamier
+Burgundy vs Noir: Burgundy shows red-purple in light. Noir is flat.
+Caramel vs Beige: Caramel has clear orange-brown warmth. Beige is more neutral.
+
+--- CONDITION (photo indicators) ---
+Corners: First to wear — leather lightens or peels
+Hardware: Gold plating wears to brass/silver underneath over time
+Chain: Darkening/patina on links = age/use
+Lambskin: Any scratches show immediately as lighter marks
+Caviar: Pebbles may flatten slightly with heavy use
+Lining: Visible fraying or staining through interior photos
+SERIAL: Pre-2021=hologram sticker. Post-2021=NFC chip embedded in lining.
