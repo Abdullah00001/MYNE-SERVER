@@ -670,11 +670,19 @@ export type TCreateBagStepThree = z.infer<typeof createBagStepThreeSchema>;
 
 export const createBagStepFourSchema = z.object({
   waitingTime: z
-    .enum(
-      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
-      {
-        error: 'Please select a valid waiting time option.',
-      }
+    .string()
+    .transform((val) => val.replace(/-/g, '–')) // normalize hyphens to en dashes
+    .pipe(
+      z.enum(
+        [
+          'No wait',
+          'Under 3 months',
+          '3–6 months',
+          '6–12 months',
+          'Over 1 year',
+        ],
+        { error: 'Please select a valid waiting time option.' }
+      )
     )
     .optional(),
 
