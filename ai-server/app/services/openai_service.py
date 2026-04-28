@@ -1,137 +1,105 @@
 import httpx
 import json
-from fastapi import HTTPException
-from app.config import OPENAI_API_KEY
-
+import logging
 import os
+import time
+from typing import List, Dict, Any, Optional
+from fastapi import HTTPException
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from app.config import OPENAI_API_KEY, SERP_API_KEY
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(__file__)
-with open(os.path.join(BASE_DIR, "knowledge.txt"), "r", encoding="utf-8") as f:
-    KNOWLEDGE_BASE = f.read()
+KNOWLEDGE_DIR = os.path.join(BASE_DIR, "knowledge")
+MAX_IMAGES = 10
+MAX_IMAGE_SIZE_MB = 5
 
-# PROMPT = '''You are a luxury goods cataloguing specialist. Analyze the bag photo(s) and extract product attributes for inventory classification. Return ONLY valid JSON..
+# Load all knowledge files once at startup
+KNOWLEDGE: Dict[str, str] = {}
+for filename in os.listdir(KNOWLEDGE_DIR):
+    if filename.endswith(".txt"):
+        key = filename.replace(".txt", "").lower()
+        with open(os.path.join(KNOWLEDGE_DIR, filename), "r", encoding="utf-8") as f:
+            KNOWLEDGE[key] = f.read()
 
-# IDENTIFICATION RULES:
+logger.info(f"Loaded knowledge for: {list(KNOWLEDGE.keys())}")
 
-# HERMÈS:
-# - Exact color names and be specific about colors
-# - detectedColor: pick the SINGLE most likely Hermès color name. Do NOT output generic colors (e.g., "blue", "brown"). Use precise names (e.g., "Bleu Nuit", "Gold", "Etoupe"). If uncertain between similar shades, choose the closest match. Never use "/" or multiple colors unless it is clearly a confirmed bi-color or HSS bag.
-# - If lighting or image quality affects color perception, still output the closest single color instead of saying "uncertain".
+BRAND_FILES = {
+    "hermès": "hermes",
+    "hermes": "hermes",
+    "chanel": "chanel",
+    "louis vuitton": "louis_vuitton",
+    "dior": "dior",
+    "bottega veneta": "bottega_veneta",
+    "prada": "prada",
+    "saint laurent": "saint_laurent",
+    "celine": "celine",
+    "céline": "celine",
+    "gucci": "gucci",
+    "loewe": "loewe",
+    "fendi": "fendi",
+    "valentino": "valentino",
+    "balenciaga": "balenciaga",
+    "givenchy": "givenchy",
+    "burberry": "burberry",
+    "miu miu": "miu_miu",
+}
 
-# - Exact leathers: strictly choose ONLY from this list:
-#   "Togo", "Epsom", "Swift", "Clemence", "Box Calf", "Barenia", "Chèvre Mysore", "Niloticus Crocodile", "Ostrich", "Lizard"
-# - If texture is unclear, choose the most likely based on visible grain and structure. Do NOT invent new leather names.
-
-# - Exact models: strictly choose ONLY from this list:
-#   "Birkin", "Mini Kelly II", "Kelly", "Kelly Pochette", "Constance", "Lindy", "Picotin", "Evelyne", "Halzan", "Jypsiere" etc
-# - Select the closest matching size if exact size is uncertain.
-
-# - Exact Variant: strictly choose from:
-#   "Sellier", "Retourne", "Pochette"
-# - Base this on structure (rigid vs soft).
-
-# - Exact Size:
-# - Always output a size. If not clearly visible, estimate based on proportions and typical dimensions. for example: "18", "20", "22", "25", "27", "30", "31", "35", "40", "46"
-
-# - Detect:
-#   - HSS (Horseshoe Stamp): two-tone leather with contrasting stitching (Horseshoe Stamp Special Order)
-#   - Bi-color / Tri-color ; two/three distinct colors
-#   - Verso : outside are different colors (interior visible at flap)
-#   - Special Order
-#   - Stamp letter (if visible)
-
-# - If a feature is not visible, return "Not visible" instead of guessing.
-
-# - Be decisive. Avoid vague terms like "maybe", "possibly", "looks like".
-# - Output must be consistent, structured, and use only allowed values.
-
-# CHANEL:
-# - Exact models: "Classic Flap Small/Medium/Jumbo/Maxi", "Mini Rectangular", "Mini Square", "Boy Small/Medium/Large", "2.55 Reissue", "22 Bag", "19 Bag", "Coco Handle", "Gabrielle", "WOC"
-# - Exact leathers: "Caviar", "Lambskin", "Goatskin", "Tweed", "Jersey", "Velvet"
-# - Hardware: "Gold", "Silver", "Ruthenium", "Mixed"
-# - Serial number format if visible
-
-# LOUIS VUITTON:
-# - Exact lines: "Monogram", "Damier Ebene", "Damier Azur", "Epi", "Mahina", "Empreinte", "Taurillon"
-# - Exact models: "Neverfull MM/GM/PM", "Speedy 25/30/35", "Alma BB/PM/MM", "Pochette Métis", "OnTheGo MM/GM", "Capucines BB/PM/MM", "Twist MM/PM", "Loop", "Multi Pochette"
-# - Date code format if visible
-
-# DIOR:
-# - Exact models: "Lady Dior Small/Medium/Large", "Dior Book Tote", "30 Montaigne", "Saddle Bag", "Bobby", "Caro", "Diorama", "Micro Cannage"
-# - Exact leathers: "Cannage", "Ultramatte", "Smooth Calfskin", "Embroidered"
-
-# BOTTEGA VENETA:
-# - Exact models: "Jodie Mini/Small/Medium", "Arco 33/48", "Cassette", "Pouch", "Andiamo", "Sardine"
-# - Detect weave size: "Intrecciato standard", "Maxi Intrecciato"
-
-# PRADA:
-# - Exact models: "Re-Edition 2000/2005", "Galleria Small/Medium/Large", "Cleo", "Padded Nappa", "Tessuto Nylon"
-# - Exact materials: "Saffiano", "Nappa", "Tessuto", "Re-Nylon"
-
-# SAINT LAURENT:
-# - Exact models: "Loulou Small/Medium", "Kate", "Icare", "Solferino", "Envelope", "Le 5 à 7"
-# - Exact leathers: "Smooth Leather", "Grained Leather", "Suede", "Patent"
-
-# CELINE:
-# - Exact models: "Luggage Nano/Mini/Micro", "Classic Box", "Triomphe", "Teen Triomphe", "Cabas", "AVA"
-
-# GUCCI:
-# - Exact models: "Dionysus Small/Medium", "Marmont Small/Medium/Large", "Bamboo 1947", "Jackie 1961", "Horsebit 1955", "Ophidia"
-
-# FOR ALL BRANDS:
-# - Detect hardware precisely: "Gold", "Silver", "Palladium", "Ruthenium", "Antique Gold", "Rose Gold"
-# - Detect condition: "New", "Excellent", "Very Good", "Good", "Fair"
-# - Detect if box fresh/unworn
-# - colorAccuracy: integer 0-100 representing confidence in the detected color
-# - alternativeColors: list of 2-3 other possible color names if color is ambiguous. Empty array [] if color is certain.
+# Pydantic models for response validation
 
 
-# Return ONLY valid JSON in this exact shape:
-# {"matches":[
-#   {
-#     "rank": 1,
-#     "brand": "Hermès",
-#     "model": "Mini Kelly II",
-#     "confidence": 93,
-#     "confidenceLabel": "High",
-#     "estimatedValueEUR": 28000,
-#     "detectedVariant": "Sellier",
-#     "detectedColor": "Étoupe",
-#     "detectedLeather": "Epsom",
-#     "detectedHardware": "Palladium",
-#     "detectedSize": "20 cm",
-#     "colorAccuracy": 87,
-#     "alternativeColors": ["Bleu Nuit", "Bleu Indigo", "Marine"],
-#     "detectedYear": "2022-2023",
-#     "stampLetter": "Z",
-#     "specialNotes": "Standard",
-#     "isSpecialOrder": false,
-#     "isExotic": false,
-#     "condition": "New",
-#     "analysis": "Detailed expert description.",
-#     "imageSearchQuery": "Hermès Mini Kelly II 20 Sellier Étoupe Epsom Palladium resale 2025"
-#   },
-#   {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":25000,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors": ["...", "..."] ,"detectedYear":"...","stampLetter":"...","specialNotes":"...","isSpecialOrder":false,"isExotic":false,"condition":"Very Good","analysis":"...","imageSearchQuery":"..."},
-#   {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":20000,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy": 75,"alternativeColors": ["...", "..."] ,"detectedYear":"...","stampLetter":"...","specialNotes":"...","isSpecialOrder":false,"isExotic":false,"condition":"Good","analysis":"...","imageSearchQuery":"..."},
-#   {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":15000,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy": 71,"alternativeColors": ["...", "..."] ,"detectedYear":"...","stampLetter":"...","specialNotes":"...","isSpecialOrder":false,"isExotic":false,"condition":"Good","analysis":"...","imageSearchQuery":"..."}
-# ]}
+class BagMatch(BaseModel):
+    rank: int = Field(..., ge=1, le=4)
+    brand: str
+    model: str
+    confidence: int = Field(default=0, ge=0, le=100)
+    confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
+    estimatedValueEUR: int = Field(default=0, ge=0)
+    detectedVariant: Optional[str] = None
+    detectedColor: str
+    detectedLeather: str
+    detectedHardware: str = Field(default="Not visible")
+    detectedSize: str
+    colorAccuracy: int = Field(default=0, ge=0, le=100)
+    alternativeColors: List[str] = []
+    detectedYear: Optional[str] = None
+    stampLetter: Optional[str] = None
+    specialNotes: str = Field(default="")
+    isSpecialOrder: bool = Field(default=False)
+    isExotic: bool = Field(default=False)
+    isBiColor: bool = Field(default=False)
+    isTriColor: bool = Field(default=False)
+    isHSS: bool = Field(default=False)
+    secondaryColor: Optional[str] = None
+    tertiaryColor: Optional[str] = None
+    condition: str
+    analysis: str
+    imageSearchQuery: str = Field(default="")
+    imageUrl: str = Field(default="")
+    thumbnailUrl: str = Field(default="")
 
-# IMPORTANT:
-# - Always return exactly 4 matches ranked by confidence
-# - estimatedValueEUR must reflect current 2025 European resale market prices
-# - For Hermès Special Orders add +30-200% to base value
-# - For exotic leathers add +300-1000% to base value
-# - detectedColor: Identify the EXACT official colorway name used by the brand.
-#   Do not invent or approximate color names.
-#   For Hermès: use official Hermès color names (e.g. "Vert Criquet", "Étoupe", "Bleu Électrique")
-#   For Chanel: use official Chanel color names (e.g. "Black", "Beige Clair", "Navy")
-#   For Louis Vuitton: use the line name (e.g. "Monogram", "Damier Ebene")
-#   Base color identification on: leather tone, saturation, undertones, and comparison to known colorways.
-#   If genuinely uncertain between two similar colors, pick the most likely one and note uncertainty in analysis field.
-# - stampLetter only applies to Hermès, use null for other brands
-# - Return ONLY the JSON object, no extra text'''
+    @field_validator('confidence', mode='before')
+    @classmethod
+    def coerce_confidence(cls, v):
+        return int(float(v) * 100) if isinstance(v, float) and v <= 1 else int(v)
 
-PROMPT = '''You are a luxury goods cataloguing specialist. Analyze the bag photo(s) using the reference knowledge in the system prompt. Return ONLY valid JSON.
+    @field_validator('detectedSize', mode='before')   # ← add this
+    @classmethod
+    def coerce_size(cls, v):
+        return str(v)
+
+    @field_validator('confidenceLabel')
+    @classmethod
+    def validate_confidence_label(cls, v: str) -> str:
+        if v not in ['High', 'Medium', 'Low']:
+            raise ValueError('confidenceLabel must be High, Medium, or Low')
+        return v
+
+
+PROMPT = '''You are a product cataloguing assistant. Extract visual attributes from the product photo(s) using the reference data below. Return ONLY valid JSON.
 
 RULES:
 - Be decisive. Never use "maybe", "possibly". If uncertain, pick closest match.
@@ -139,7 +107,7 @@ RULES:
 - If lighting affects color, still commit to closest single color.
 - detectedLeather: choose ONLY from allowed values in knowledge base.
 - detectedModel: choose ONLY from allowed values in knowledge base.
-- detectedVariant: "Sellier"=rigid/outside stitch, "Retourne"=soft/inside stitch, "Pochette"=clutch. Null if not applicable.
+- detectedVariant: "Sellier"=rigid/outside stitch, "Retourne"=soft/inside stitch, "Pochette"=clutch. 
 - detectedSize: always output integer. Estimate from proportions if not visible.
 - stampLetter: Hermès only, null for all other brands.
 - colorAccuracy: 0-100 integer.
@@ -161,45 +129,219 @@ RULES:
 
 Return ONLY this JSON shape:
 {"matches":[
-  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":["Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
+  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
+      "Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
   {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
   {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."}
+  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":[
+      "...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery ":"..."}
 ]}
 
-IMPORTANT: 4 matches always. estimatedValueEUR = 2025 EU resale market. Special Order +30-200%. Exotic leather +300-1000%.'''
+IMPORTANT: Always return exactly 4 matches.
+- Rank 1: most likely identification with highest confidence
+- Rank 2: second most likely alternative (same model and different variant)
+- Rank 3: third alternative (could be different brand if uncertain)
+- Rank 4: fourth alternative (least likely but plausible)
+Each match must have genuinely different brand/model combinations. Never repeat the same brand+model twice.'''
 
 
-async def identify_bag(photos: list, photo_mimes: list):
+async def upload_image(photo_b64: str, photo_mime: str) -> str:
+    """Upload to freeimage.host and return public URL"""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            "https://freeimage.host/api/1/upload",
+            data={
+                "key": "6d207e02198a847aa98d0a2a901485a5",  # free public API key
+                "action": "upload",
+                "source": photo_b64,
+                "format": "json",
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    url = data["image"]["url"]
+    logger.info(f"Uploaded to freeimage.host: {url}")
+    return url
+
+
+async def get_lens_data(photo_b64: str, photo_mime: str) -> Dict[str, Any]:
+    """Use SerpAPI Google Lens to get product titles and image URLs"""
+
+    # Step 1: Upload to Imgur to get a public URL
+    image_url = await upload_image(photo_b64, photo_mime)
+
+    # Step 2: Pass public URL to SerpAPI
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(
+            "https://serpapi.com/search",
+            params={
+                "engine": "google_lens",
+                "url": image_url,
+                "api_key": SERP_API_KEY,
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    visual_matches = data.get("visual_matches", [])
+    titles = [m.get("title", "") for m in visual_matches[:5] if m.get("title")]
+    image_urls = [m.get("thumbnail", "")
+                  for m in visual_matches[:4] if m.get("thumbnail")]
+    prices = [m.get("price", {}).get("value", "") for m in visual_matches[:4]]
+
+    logger.info(f"Lens titles: {titles}")
+    logger.info(f"Lens image URLs: {len(image_urls)}")
+    logger.info(f"Lens prices: {prices}")
+
+    return {
+        "titles": titles,
+        "image_urls": image_urls,
+        "prices": prices,
+    }
+
+
+async def detect_brand(photos: List[str], photo_mimes: List[str]) -> str:
+    """Step 1: Cheap call to identify brand only"""
     image_content = [
         {
             "type": "image_url",
             "image_url": {
                 "url": f"data:{mime};base64,{b64}",
-                "detail": "auto"
+                "detail": "low"  # low detail = cheaper & faster
             }
         }
         for b64, mime in zip(photos, photo_mimes)
     ]
 
-    content = [{"type": "text", "text": PROMPT}] + image_content
+    content = [{
+        "type": "text",
+        "text": """What luxury brand is this bag?
+Return ONLY ONE brand name from this list, nothing else:
+Hermès, Chanel, Louis Vuitton, Dior, Gucci, Prada, Bottega Veneta,
+Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, Miu Miu."""
+    }] + image_content
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        res = await client.post(
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={
                 "model": "gpt-4o",
-                "max_tokens": 3000,
+                "max_tokens": 10,
+                "temperature": 0,
+                "messages": [{"role": "user", "content": content}]
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    raw = data["choices"][0]["message"]["content"].strip().lower()
+    logger.info(f"Raw brand detected: {raw}")
+
+    # Direct lookup in BRAND_FILES
+    brand_key = BRAND_FILES.get(raw)
+    if brand_key:
+        logger.info(f"Brand matched: {raw} -> {brand_key}")
+        return brand_key
+
+    # If no exact match, try partial match
+    for brand_name, key in BRAND_FILES.items():
+        if brand_name in raw or raw in brand_name:
+            logger.info(f"Brand partial match: {raw} -> {key}")
+            return key
+
+    logger.warning(f"Brand not recognized: {raw}, using base knowledge only")
+    return "unknown"
+
+
+async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[str, Any]]:
+    start_time = time.time()
+
+    # Validate inputs
+    if not photos or not photo_mimes:
+        raise HTTPException(status_code=400, detail="No photos provided")
+    if len(photos) > MAX_IMAGES:
+        raise HTTPException(
+            status_code=400, detail=f"Maximum {MAX_IMAGES} photos allowed")
+
+# STEP 1: Get Lens data
+    lens_data = await get_lens_data(photos[0], photo_mimes[0])
+    image_urls = lens_data["image_urls"]
+
+    # Log full lens result
+    logger.info(f"Full lens data: {json.dumps(lens_data, indent=2)}")
+
+    # Build hint string for GPT-4o from Lens titles
+    hints = f"""Product context from Google Lens:
+    - Matched titles: {', '.join(lens_data['titles'][:5])}
+    - Estimated prices: {', '.join([p for p in lens_data['prices'] if p][:3])}"""
+
+    logger.info(f"Lens hints: {hints}")
+
+# STEP 2: Detect brand from Lens titles
+    brand_key = "unknown"
+    for title in lens_data["titles"]:
+        title_lower = title.lower()
+        for brand_name, key in BRAND_FILES.items():
+            if brand_name in title_lower:
+                brand_key = key
+                break
+        if brand_key != "unknown":
+            break
+
+    logger.info(f"Brand from Lens: {brand_key}")
+
+    # If Lens didn't find brand, fall back to GPT brand detection
+    if brand_key == "unknown":
+        brand_key = await detect_brand(photos, photo_mimes)
+        logger.info(f"Brand from detect_brand fallback: {brand_key}")
+
+    base = KNOWLEDGE.get("_base", "")
+    brand_knowledge = KNOWLEDGE.get(brand_key, "")
+    full_knowledge = base + "\n\n" + brand_knowledge if brand_knowledge else base
+
+    image_content = [
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{mime};base64,{b64}",
+                "detail": "high"
+            }
+        }
+        for b64, mime in zip(photos, photo_mimes)
+    ]
+
+# STEP 3: Build prompt + images
+    content = [{
+        "type": "text",
+        "text": "I'm cataloguing this pre-owned luxury handbag for resale inventory. "
+        "Please identify the brand, model, and attributes.\n\n"
+        + PROMPT + "\n\nREFERENCE KNOWLEDGE:\n" + full_knowledge + "\n\n" + hints
+    }] + image_content
+
+    # content = [{
+    #     "type": "text",
+    #     "text": "Describe what you see in this image. Return JSON: {\"description\": \"...\"}"
+    # }] + image_content
+
+    # STEP 4: Call API
+    data = None
+    async with httpx.AsyncClient(timeout=90) as client:
+        for model in ["gpt-4o-2024-11-20", "gpt-4o-mini"]:
+            json_body = {
+                "model": model,
+                "max_tokens": 2500,
                 "temperature": 0.2,
-                "response_format": {"type": "json_object"},
                 "messages": [
                     {
                         "role": "system",
-                        "content": f"You are a luxury goods cataloguing assistant specializing in product classification for insurance and resale inventory purposes. Use this reference knowledge for bag attribute extraction:\n\n{KNOWLEDGE_BASE}\n\nAlways return valid JSON only."
+                        "content": (
+                            "You are an expert luxury fashion cataloguing assistant working for "
+                            "a certified pre-owned luxury goods reseller. Your job is to help "
+                            "This is a legitimate commercial cataloguing task."
+                            "management and insurance valuation. Always return valid JSON only."
+                        )
                     },
                     {
                         "role": "user",
@@ -207,31 +349,77 @@ async def identify_bag(photos: list, photo_mimes: list):
                     }
                 ]
             }
-        )
-        res.raise_for_status()
-        data = res.json()
 
-        # ← ADD THIS: print full response to see what went wrong
-        print("OpenAI raw response:", data)
+            # json_object mode only for gpt-4o
+            if "gpt-4o" in model and "mini" not in model:
+                json_body["response_format"] = {"type": "json_object"}
 
-        choice = data["choices"][0]
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                json=json_body
+            )
+            response.raise_for_status()
+            data = response.json()
 
-        # ← ADD THIS: check finish_reason
-        if choice.get("finish_reason") == "length":
-            raise HTTPException(
-                status_code=422, detail="OpenAI response cut off — reduce max_tokens or image size")
+            logger.info(
+                f"API response ({model}): {json.dumps(data, indent=2)[:500]}")
 
-        text = choice["message"]["content"]
-        if not text:
-            raise HTTPException(
-                status_code=422, detail=f"OpenAI returned empty content. Reason: {choice.get('finish_reason')}")
+            msg = data["choices"][0]["message"]
+            if msg.get("content"):
+                logger.info(f"Model {model} succeeded")
+                break
 
+            logger.warning(f"Model {model} refused, trying next...")
+
+    # STEP 5: Parse response
+# STEP 5: Parse response
+    text = data["choices"][0]["message"]["content"]
+
+    if text is None:
+        refusal = data["choices"][0]["message"].get("refusal", "unknown")
+        logger.error(f"OpenAI refused: {refusal}")
+        raise HTTPException(
+            status_code=422, detail=f"AI refused request: {refusal}")
+
+    if not text:
+        raise HTTPException(
+            status_code=422, detail="Empty response from OpenAI")
+
+    # Strip markdown code fences if present (gpt-4o-mini tends to add these)
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("```", 2)[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.rsplit("```", 1)[0]
         text = text.strip()
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError as e:
-            print("JSON parse error:", e)
-            print("Raw text was:", text)
-            raise HTTPException(
-                status_code=422, detail=f"Failed to parse AI response: {str(e)}")
-        return parsed.get("matches", [])
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error: {text[:300]}")
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+
+    matches = parsed.get("matches", [])   # ← assign FIRST
+    if not matches:
+        raise HTTPException(status_code=422, detail="No matches in response")
+
+    # ← THEN log
+    logger.info(f"Raw matches from API: {json.dumps(matches[0], indent=2)}")
+
+    # STEP 6: Validate with Pydantic
+    try:
+        validated = [BagMatch(**m).model_dump() for m in matches]
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=422, detail=f"Invalid response format: {str(e)}")
+
+# STEP 7: Attach image URLs from Lens
+    for i, match in enumerate(validated):
+        match["imageUrl"] = image_urls[i] if i < len(image_urls) else ""
+        match["thumbnailUrl"] = image_urls[i] if i < len(image_urls) else ""
+    logger.info(
+        f"Done in {time.time() - start_time:.2f}s | brand={brand_key} | photos={len(photos)}")
+    return validated

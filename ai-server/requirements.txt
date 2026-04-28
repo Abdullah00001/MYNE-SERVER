@@ -7,3 +7,4 @@ python-dateutil
 python-multipart
 requests
 motor
+google-genai

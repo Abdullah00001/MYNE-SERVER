@@ -451,7 +451,48 @@ export class UserBagService {
       );
     }
   }
-
+  async editCollection({
+    user,
+    collection,
+    requestUpdateData,
+  }: {
+    user: IUser;
+    collection: IUserBag;
+    requestUpdateData: TPatchUserCollection;
+  }) {
+    try {
+      const { updatedData, deletedImages } =
+        requestUpdateData as TPatchUserCollection;
+      if (
+        deletedImages &&
+        deletedImages?.deletedImagesUrls &&
+        deletedImages?.deletedImagesUrls.length > 0
+      ) {
+        const deletedImagesKeys = deletedImages?.deletedImagesUrls.map((url) =>
+          this.systemUtils.extractS3KeyFromUrl(url)
+        );
+        await Promise.all(
+          deletedImagesKeys.map((key) => this.s3Utils.singleDelete({ key }))
+        );
+      }
+      const data = await UserCollection.findOneAndUpdate(
+        {
+          _id: collection._id,
+          userId: user._id,
+        },
+        { $set: { ...updatedData } },
+        { new: true }
+      );
+      if (!data)
+        throw new Error('Something went wrong while updating the collection');
+      return data;
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error(
+        'An Unexpected Error Occurred In Edit Collection Service'
+      );
+    }
+  }
   async updateCollection({
     collection,
     user,

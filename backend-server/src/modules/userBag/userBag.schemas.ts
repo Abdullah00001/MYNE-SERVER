@@ -340,7 +340,25 @@ export const baseUpdateSchema = z.object({
       }
     )
     .optional(),
-
+  primaryImage: z.url('Primary image must be a valid URL').optional(),
+  images: z
+    .array(
+      z.string().refine(
+        (val) => {
+          try {
+            new URL(val);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        {
+          message: 'Each deleted image URL must be a valid URL',
+        }
+      )
+    )
+    .optional()
+    .default([]),
   notes: z.union([z.string(), z.null()]).optional(),
   publishStatus: z.enum(PublishStatus),
 });
@@ -413,6 +431,10 @@ export const PatchCollectionSchema = baseUpdateSchema
 
 export const PatchUserCollectionSchema = z.object({
   updatedData: PatchCollectionSchema,
+  isEdit: z.coerce
+    .boolean({
+      error: 'isEdit must be a boolean',
+    }).optional(),
   deletedImages: DeletedImageFieldSchema,
 });
 

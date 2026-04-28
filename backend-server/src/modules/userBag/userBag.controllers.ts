@@ -10,6 +10,7 @@ import {
   TCreateBagStepThree,
   TCreateBagStepTwo,
   TCreateUserCollection,
+  TPatchUserCollection,
 } from '@/modules/userBag/userBag.schemas';
 import { UserBagService } from '@/modules/userBag/userBag.services';
 
@@ -254,12 +255,21 @@ export class UserBagController extends BaseController {
   private async _patchCollection(req: Request, res: Response): Promise<void> {
     const user = req.user as IUser;
     const collection = req.userBagCollection;
-    const requestUpdateData = req.body;
-    const data = await this.userBagService.patchCollection({
-      user,
-      collection,
-      requestUpdateData,
-    });
+    const requestUpdateData = req.body as TPatchUserCollection;
+    let data: unknown;
+    if (requestUpdateData.isEdit) {
+      data = await this.userBagService.editCollection({
+        user,
+        collection,
+        requestUpdateData,
+      });
+    } else {
+      data = await this.userBagService.patchCollection({
+        user,
+        collection,
+        requestUpdateData,
+      });
+    }
     res.status(200).json({
       success: true,
       status: 200,
