@@ -463,6 +463,7 @@ export class UserBagService {
     try {
       const { updatedData, deletedImages } =
         requestUpdateData as TPatchUserCollection;
+        console.log(updatedData);
       if (
         deletedImages &&
         deletedImages?.deletedImagesUrls &&

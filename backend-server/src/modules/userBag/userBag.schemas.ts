@@ -281,28 +281,17 @@ export const baseUpdateSchema = z.object({
     .optional(),
 
   purchaseType: z.string().nullable().optional(),
-  primaryImage: z.url('Primary image must be a valid URL').optional(),
   waitingTime: z.string().optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
-  images: z
-    .array(
-      z.string().refine(
-        (val) => {
-          try {
-            new URL(val);
-            return true;
-          } catch {
-            return false;
-          }
-        },
-        {
-          message: 'Each deleted image URL must be a valid URL',
-        }
-      )
-    )
-    .optional()
-    .default([]),
+  primaryImage: z.url('Primary image must be a valid URL').optional(),
+  images: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z
+      .array(z.url('Each image must be a valid URL'))
+      .max(9, 'You can upload a maximum of 9 images')
+      .optional()
+  ),
   publishStatus: z.enum(PublishStatus),
 });
 
