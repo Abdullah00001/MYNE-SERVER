@@ -144,7 +144,7 @@ async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str,
     base = f"{brand} {model} {size} {leather} {color}"
 
     query_1 = f"{base} site:vestiaire.com OR site:therealreal.com OR site:1stdibs.com"
-    query_2 = f"{base} site:fashionphile.com OR site:rebag.com OR site:collectorsquare.com OR site:labellov.com"
+    query_2 = f"{base} site:fashionphile.com OR site:rebag.com OR site:collectorsquare.com OR site:labellov.com "
 
     async def search(q: str) -> list:
         async with httpx.AsyncClient(timeout=20) as client:
