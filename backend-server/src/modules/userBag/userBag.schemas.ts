@@ -130,15 +130,14 @@ export const CreateCollectionSchema = z.object({
     .string()
     .regex(
       /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{2}$/,
-      'Purchase date must be in dd/mm/yy format (e.g., 12/11/25)'
+      'Purchase date must be in dd/mm/yy format (e.g., 28/02/26)'
     )
     .transform((val) => {
-      // Parse dd/mm/yy to Date object
       const [day, month, year] = val.split('/');
-      // Assuming yy is 20yy (2000s)
       const fullYear = `20${year}`;
-      return new Date(`${fullYear}-${month}-${day}`);
+      return new Date(`${fullYear}-${month}-${day}T00:00:00.000Z`);
     })
+    .nullable()
     .optional(),
   variant: z
     .string({
@@ -583,52 +582,26 @@ export const createBagStepOneSchema = z.object({
 export type TCreateBagStepOne = z.infer<typeof createBagStepOneSchema>;
 
 export const createBagStepTwoSchema = z.object({
-  purchasePrice: z.coerce
-    .number({
-      error: 'Purchase price must be a number',
-    })
-    .min(0, {
-      error: 'Purchase price cannot be negative',
-    })
-    .optional(),
+  purchasePrice: z.coerce.number().nullish(), // nullish() = optional + nullable
 
-  currency: z
-    .string({
-      error: 'Currency is required',
-    })
-    .min(1, {
-      error: 'Currency cannot be empty',
-    })
-    .max(3, {
-      error: 'Currency code should be 3 characters or less (e.g., USD, EUR)',
-    }),
+  currency: z.string().nullable().optional(),
 
-  purchaseLocation: z
-    .string({
-      error: 'Purchase location is required',
-    })
-    .min(1, {
-      error: 'Purchase location cannot be empty',
-    })
-    .optional(),
+  purchaseLocation: z.string().nullable().optional(),
   wearChecklist: z
     .array(
-      z
-        .string({
-          error: 'Each wear checklist item must be a string',
-        })
-        .min(1, {
-          error: 'Wear checklist items cannot be empty',
-        })
+      z.string({
+        error: 'Each wear checklist item must be a string',
+      })
     )
+    .nullable()
     .optional(),
   sellerName: z
     .string({
       error: 'Seller name is required',
     })
+    .nullable()
     .optional(),
 
-  // Purchase date - accepts dd/mm/yy format and converts to Date
   purchaseDate: z
     .string()
     .regex(
@@ -636,21 +609,14 @@ export const createBagStepTwoSchema = z.object({
       'Purchase date must be in dd/mm/yy format (e.g., 12/11/25)'
     )
     .transform((val) => {
-      // Parse dd/mm/yy to Date object
       const [day, month, year] = val.split('/');
-      // Assuming yy is 20yy (2000s)
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
     })
+    .nullable()
     .optional(),
 
-  purchaseType: z
-    .string({
-      error: 'Purchase type is required',
-    })
-    .min(1, {
-      error: 'Purchase type cannot be empty',
-    }),
+  purchaseType: z.string().nullable().optional(),
 });
 
 export type TCreateBagStepTwo = z.infer<typeof createBagStepTwoSchema>;

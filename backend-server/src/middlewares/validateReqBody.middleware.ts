@@ -17,7 +17,6 @@ export const validateReqBody =
     const files = req.files as Express.Multer.File[];
 
     const result = schema.safeParse(req.body);
-
     if (!result.success) {
       const errors = result.error.issues.map((issue) => ({
         field: issue.path.join('.') || 'body',
