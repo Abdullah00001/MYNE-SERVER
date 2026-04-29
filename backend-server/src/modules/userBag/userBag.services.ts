@@ -104,6 +104,7 @@ export class UserBagService {
     payload: TCreateBagStepOne;
   }): Promise<IUserBag> {
     try {
+      console.log(payload);
       const response = new UserCollection({
         userId: user._id,
         ...payload,
@@ -350,6 +351,7 @@ export class UserBagService {
     collection: IUserBag;
     requestUpdateData: TPatchUserCollection;
   }): Promise<IUserBag> {
+    console.log(collection);
     const aiFields: {
       priceStatus?: TAdminBagPriceStatus;
       historicalValue?: Record<string, IYearValue>;
@@ -390,10 +392,12 @@ export class UserBagService {
             leather: collection.material,
             hardware: collection.hardwareColor,
             size: collection.size,
+            special_variant:collection.variant,
           }
         );
 
         const aiData = plainResponse.data?.data;
+        console.log(aiData);
         const priceHistory: { period: string; avg_price: number }[] =
           aiData?.price_history?.history ?? [];
         const currency: Currency = aiData?.currency ?? null;

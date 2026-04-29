@@ -208,35 +208,6 @@ async def get_price(req: ConfirmBagRequest):
 # CRUD
 # ─────────────────────────────────────────
 
-@router.get("/bags")
-async def list_bags():
-    bags = []
-    async for bag in usercollections.find(
-        {"is_archived": False}
-    ).sort("created_at", -1).limit(50):
-        bag["id"] = str(bag["_id"])
-        del bag["_id"]
-        bags.append(bag)
-    return {"status": 200, "success": True, "data": bags}
-
-
-@router.get("/bags/{bag_id}")
-async def get_bag(bag_id: str):
-    bag = await usercollections.find_one({"_id": ObjectId(bag_id)})
-    if not bag:
-        raise HTTPException(status_code=404, detail="Bag not found")
-    bag["id"] = str(bag["_id"])
-    del bag["_id"]
-    return {"status": 200, "success": True, "data": bag}
-
-
-@router.delete("/bags/{bag_id}")
-async def delete_bag(bag_id: str):
-    result = await usercollections.delete_one({"_id": ObjectId(bag_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Bag not found")
-    return {"status": 200, "success": True, "deleted": True}
-
 
 @router.get("/health")
 async def health():

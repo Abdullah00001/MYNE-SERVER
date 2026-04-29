@@ -49,7 +49,7 @@ export class ModelService {
       const newModel = new ModelModel({
         modelName,
         brandId: new Types.ObjectId(brandId),
-        createdBy: new Types.ObjectId(user._id as string),
+        createdBy: new Types.ObjectId(user?.sub as string),
         modelImage: url,
       });
       await newModel.save();
@@ -142,7 +142,7 @@ export class ModelService {
       const key = this.systemUtils.extractS3KeyFromUrl(model.modelImage);
       await Promise.all([
         this.s3Utils.singleDelete({ key }),
-        ModelModel.deleteOne(model._id),
+        ModelModel.deleteOne({ _id: model._id }),
       ]);
     } catch (error) {
       if (error instanceof Error) throw error;

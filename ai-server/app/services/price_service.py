@@ -115,10 +115,16 @@ Special Variant: {special_variant}
 {"The following real market prices were found but are limited: " + str(market) if base_price > 0 else "No real market data was found."}
 
 Return ONLY a JSON object with these fields:
-- current_price: number (EUR)
-- confidence: "low" | "medium" | "high"  
-- reasoning: string (1-2 sentences explaining the price)
-- color_premium: boolean (is this color considered rare/premium?)
+    - current_value: number (EUR)
+    - currency: "EUR"
+    - confidence: "low" | "medium" | "high"
+    - trend: "appreciating" | "depreciating" | "stable"
+    - change_percentage: number (estimated % change over last 12 months)
+    - price_range: object with min and max (EUR)
+    - retail_price: number (EUR, new from boutique)
+    - resale_premium: number (% premium over retail, can be negative)
+    - reasoning: string (1-2 sentences)
+    - color_premium: boolean
         """
         result = await call_gpt(prompt)
         result["sources_used"] = sources_used or ["GPT-4o estimate"]
@@ -127,12 +133,18 @@ Return ONLY a JSON object with these fields:
 
     # ── Real data was sufficient — return directly ────────
     return {
-        "current_price": adjusted_price,
+        "current_value": adjusted_price,
+        "currency": "EUR",
         "confidence": "high" if data_points >= 6 else "medium",
+        "trend": "stable",
+        "change_percentage": 0.0,
+        "price_range": {"min": round(adjusted_price * 0.9, 2), "max": round(adjusted_price * 1.1, 2)},
+        "retail_price": None,
+        "resale_premium": None,
         "sources_used": sources_used,
         "data_points": data_points,
         "reasoning": f"Based on {data_points} real market listings. Condition ({condition}) and variant ({special_variant}) multipliers applied.",
-        "color_premium": False  # GPT not called, so we don't know
+        "color_premium": False,
     }
 
 
@@ -181,8 +193,8 @@ async def get_price_history(
 
     Return ONLY a JSON object with:
     - history: array of exactly 12 objects in chronological order, each with:
-        - month: string formatted as "Mon YYYY" e.g. "Apr 2025", "May 2025" ... "Mar 2026"
-        - price: number in EUR (integer, no decimals)
+        - period: string formatted as "Mon YYYY" e.g. "Apr 2025", "May 2025" ... "Mar 2026"
+        - avg_price: number in EUR (integer, no decimals)
     - trend: "appreciating" | "depreciating" | "stable"
     - trend_note: string (1 sentence about the overall trend)   
 
@@ -239,7 +251,7 @@ async def get_full_valuation(
         special_variant=special_variant,
     )
 
-    current_price = current_result.get("current_price", 0)
+    current_price = current_result.get("current_value", 0)
 
     # Step 2: Get 10-month history anchored to current price
     history_result = await get_price_history(
@@ -254,7 +266,8 @@ async def get_full_valuation(
     # Step 3: Merge and return
     return {
         **current_result,
-        "history":    history_result.get("history", []),
-        "trend":      history_result.get("trend", "stable"),
+        "price_history": {
+            "history": history_result.get("history", [])
+        },
         "trend_note": history_result.get("trend_note", ""),
     }

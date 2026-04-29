@@ -123,9 +123,6 @@ export const CreateCollectionSchema = z.object({
     .string({
       error: 'Seller name is required',
     })
-    .min(1, {
-      error: 'Seller name cannot be empty',
-    })
     .optional(),
 
   // Purchase date - accepts dd/mm/yy format and converts to Date
@@ -160,14 +157,7 @@ export const CreateCollectionSchema = z.object({
     .optional(),
 
   // Optional fields - also coerced if provided
-  waitingTime: z
-    .enum(
-      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
-      {
-        error: 'Please select a valid waiting time option.',
-      }
-    )
-    .optional(),
+  waitingTime: z.string().optional(),
 
   notes: z.string().optional(),
   publishStatus: z.enum(PublishStatus),
@@ -289,9 +279,6 @@ export const baseUpdateSchema = z.object({
     .string({
       error: 'Seller name is required',
     })
-    .min(1, {
-      error: 'Seller name cannot be empty',
-    })
     .optional(),
 
   variant: z
@@ -332,14 +319,7 @@ export const baseUpdateSchema = z.object({
   }),
 
   // Optional fields (can be null or undefined)
-  waitingTime: z
-    .enum(
-      ['No wait', 'Under 3 months', '3–6 months', '6–12 months', 'Over 1 year'],
-      {
-        error: 'Please select a valid waiting time option.',
-      }
-    )
-    .optional(),
+  waitingTime: z.string().optional(),
   primaryImage: z.url('Primary image must be a valid URL').optional(),
   images: z
     .array(
@@ -434,7 +414,8 @@ export const PatchUserCollectionSchema = z.object({
   isEdit: z.coerce
     .boolean({
       error: 'isEdit must be a boolean',
-    }).optional(),
+    })
+    .optional(),
   deletedImages: DeletedImageFieldSchema,
 });
 
@@ -645,9 +626,6 @@ export const createBagStepTwoSchema = z.object({
     .string({
       error: 'Seller name is required',
     })
-    .min(1, {
-      error: 'Seller name cannot be empty',
-    })
     .optional(),
 
   // Purchase date - accepts dd/mm/yy format and converts to Date
@@ -691,22 +669,7 @@ export const createBagStepThreeSchema = z.object({
 export type TCreateBagStepThree = z.infer<typeof createBagStepThreeSchema>;
 
 export const createBagStepFourSchema = z.object({
-  waitingTime: z
-    .string()
-    .transform((val) => val.replace(/-/g, '–')) // normalize hyphens to en dashes
-    .pipe(
-      z.enum(
-        [
-          'No wait',
-          'Under 3 months',
-          '3–6 months',
-          '6–12 months',
-          'Over 1 year',
-        ],
-        { error: 'Please select a valid waiting time option.' }
-      )
-    )
-    .optional(),
+  waitingTime: z.string().optional(),
 
   notes: z.union([z.string(), z.null()]).optional(),
 });

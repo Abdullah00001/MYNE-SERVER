@@ -171,9 +171,9 @@ export class BrandService {
   async deleteBrand({ brand }: { brand: IBrand }): Promise<void> {
     try {
       const key = this.systemUtils.extractS3KeyFromUrl(brand.brandLogo);
-      Promise.all([
-        await this.s3Utils.singleDelete({ key }),
-        await Brand.deleteOne({ _id: brand._id }),
+      await Promise.all([
+        this.s3Utils.singleDelete({ key }),
+        Brand.deleteOne({ _id: brand._id }),
       ]);
       return;
     } catch (error) {
