@@ -165,49 +165,46 @@ export const CreateCollectionSchema = z.object({
 export type TCreateUserCollection = z.infer<typeof CreateCollectionSchema>;
 
 export const baseUpdateSchema = z.object({
+  brandId: z
+    .string({
+      error: 'Brand ID is required',
+    })
+    .refine((val) => isValidObjectId(val), {
+      message: 'Invalid Brand ID format',
+    }),
+
+  modelId: z
+    .string({
+      error: 'Model ID is required',
+    })
+    .refine((val) => isValidObjectId(val), {
+      message: 'Invalid Model ID format',
+    }),
+
   // Bag properties
   bagColor: z
     .string({
-      error: 'Bag color must be a string',
+      error: 'Bag color is required',
     })
     .min(1, {
       error: 'Bag color cannot be empty',
     }),
-
-  material: z
-    .string({
-      error: 'Leather type must be a string',
-    })
-    .min(1, {
-      error: 'Leather type cannot be empty',
-    }),
-
   hardwareColor: z
     .string({
-      error: 'Hardware color must be a string',
+      error: 'Bag hardware color is required',
     })
     .min(1, {
-      error: 'Hardware color cannot be empty',
+      error: 'Bag hardware color cannot be empty',
     }),
-
   size: z
     .string({
-      error: 'Size must be a string',
+      error: 'Size is required',
     })
     .min(1, {
       error: 'Size cannot be empty',
     }),
 
-  // Price status - assuming it's an enum/string
-  priceStatus: z
-    .string({
-      error: 'Price status must be a string',
-    })
-    .min(1, {
-      error: 'Price status cannot be empty',
-    }),
-
-  // Production year - with coercion for form-data
+  // Production year - COERCED from string to number for form-data
   // productionYear: z.coerce
   //   .number({
   //     error: 'Production year must be a number',
@@ -222,64 +219,13 @@ export const baseUpdateSchema = z.object({
   //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
   //   }),
 
-  // Condition
-  condition: z
+  material: z
     .string({
-      error: 'Condition must be a string',
+      error: 'Leather type is required',
     })
     .min(1, {
-      error: 'Condition cannot be empty',
+      error: 'Leather type cannot be empty',
     }),
-
-  // Purchase price - with coercion for form-data
-  purchasePrice: z.coerce
-    .number({
-      error: 'Purchase price must be a number',
-    })
-    .min(0, {
-      error: 'Purchase price cannot be negative',
-    })
-    .optional(),
-  wearChecklist: z
-    .array(
-      z
-        .string({
-          error: 'Each wear checklist item must be a string',
-        })
-        .min(1, {
-          error: 'Wear checklist items cannot be empty',
-        })
-    )
-    .optional(),
-  // Currency
-  currency: z
-    .string({
-      error: 'Currency must be a string',
-    })
-    .min(1, {
-      error: 'Currency cannot be empty',
-    })
-    .max(3, {
-      error: 'Currency code should be 3 characters or less (e.g., USD, EUR)',
-    })
-    .optional(),
-
-  // Purchase location
-  purchaseLocation: z
-    .string({
-      error: 'Purchase location must be a string',
-    })
-    .min(1, {
-      error: 'Purchase location cannot be empty',
-    })
-    .optional(),
-
-  sellerName: z
-    .string({
-      error: 'Seller name is required',
-    })
-    .optional(),
-
   variant: z
     .string({
       error: 'Variant is required',
@@ -287,8 +233,39 @@ export const baseUpdateSchema = z.object({
     .min(1, {
       error: 'Variant cannot be empty',
     }),
+  // Condition of the bag
+  condition: z
+    .string({
+      error: 'Condition is required',
+    })
+    .min(1, {
+      error: 'Condition cannot be empty',
+    }),
+  // Archived status - with coercion for form-data
+  isArchived: z.coerce.boolean({
+    error: 'isArchived must be a boolean',
+  }),
 
-  // Purchase date - accepts dd/mm/yy format
+  purchasePrice: z.coerce.number().nullish(), // nullish() = optional + nullable
+
+  currency: z.string().nullable().optional(),
+
+  purchaseLocation: z.string().nullable().optional(),
+  wearChecklist: z
+    .array(
+      z.string({
+        error: 'Each wear checklist item must be a string',
+      })
+    )
+    .nullable()
+    .optional(),
+  sellerName: z
+    .string({
+      error: 'Seller name is required',
+    })
+    .nullable()
+    .optional(),
+
   purchaseDate: z
     .string()
     .regex(
@@ -300,26 +277,14 @@ export const baseUpdateSchema = z.object({
       const fullYear = `20${year}`;
       return new Date(`${fullYear}-${month}-${day}`);
     })
+    .nullable()
     .optional(),
 
-  // Purchase type
-  purchaseType: z
-    .string({
-      error: 'Purchase type must be a string',
-    })
-    .min(1, {
-      error: 'Purchase type cannot be empty',
-    })
-    .optional(),
-
-  // Archived status - with coercion for form-data
-  isArchived: z.coerce.boolean({
-    error: 'isArchived must be a boolean',
-  }),
-
-  // Optional fields (can be null or undefined)
-  waitingTime: z.string().optional(),
+  purchaseType: z.string().nullable().optional(),
   primaryImage: z.url('Primary image must be a valid URL').optional(),
+  waitingTime: z.string().optional(),
+
+  notes: z.union([z.string(), z.null()]).optional(),
   images: z
     .array(
       z.string().refine(
@@ -338,7 +303,6 @@ export const baseUpdateSchema = z.object({
     )
     .optional()
     .default([]),
-  notes: z.union([z.string(), z.null()]).optional(),
   publishStatus: z.enum(PublishStatus),
 });
 

@@ -376,9 +376,8 @@ export class UserBagService {
         await Promise.all(
           deletedImagesKeys.map((key) => this.s3Utils.singleDelete({ key }))
         );
-        newUpdatedData.images = images;
       }
-
+      newUpdatedData.images = images;
       if (isPublished) {
         const plainResponse = await axios.post(
           `${env.AI_SERVER_URL}/bags/price`,
@@ -390,7 +389,7 @@ export class UserBagService {
             leather: collection.material,
             hardware: collection.hardwareColor,
             size: collection.size,
-            special_variant:collection.variant,
+            special_variant: collection.variant,
           }
         );
 

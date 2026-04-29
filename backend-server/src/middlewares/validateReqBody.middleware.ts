@@ -11,6 +11,7 @@ const ALLOWED_METHODS = ['POST', 'PUT', 'PATCH'] as const;
 export const validateReqBody =
   <T>(schema: ZodType<T>) =>
   async (req: Request, res: Response, next: NextFunction) => {
+    console.log(req.body);
     if (!ALLOWED_METHODS.includes(req.method as any)) {
       return next();
     }
@@ -22,6 +23,7 @@ export const validateReqBody =
         field: issue.path.join('.') || 'body',
         message: issue.message,
       }));
+      console.log(errors);
       if (files && files.length > 0) {
         const systemUtils = container.resolve(SystemUtils);
         const fileNames = files.map((file) => file.filename);
