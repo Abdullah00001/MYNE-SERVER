@@ -14,6 +14,7 @@ export interface IPriceSyncJobData {
   hardware: string;
   size: string;
   updateType: 'CURRENT' | 'HISTORICAL';
+  variant:string
 }
 
 @injectable()

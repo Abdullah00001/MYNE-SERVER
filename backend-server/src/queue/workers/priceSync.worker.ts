@@ -10,7 +10,10 @@ import UserCollection from '@/modules/userBag/userBag.model';
 import { monthNameMap } from '@/const';
 import { SystemUtils } from '@/utils/system.utils';
 import { IPriceSyncJobData } from '@/queue/queues/priceSync.queue';
-import { Currency, TAdminBagPriceStatus } from '@/modules/adminBag/adminBag.types';
+import {
+  Currency,
+  TAdminBagPriceStatus,
+} from '@/modules/adminBag/adminBag.types';
 import { IYearValue } from '@/modules/userBag/userBag.types';
 
 @injectable()
@@ -22,10 +25,23 @@ export class PriceSyncWorker extends BaseWorker {
   }
 
   private async process(job: Job<IPriceSyncJobData>): Promise<void> {
-    const { bagId, brand, model, color, condition, leather, hardware, size, updateType } = job.data;
+    const {
+      bagId,
+      brand,
+      model,
+      color,
+      condition,
+      leather,
+      hardware,
+      size,
+      updateType,
+      variant,
+    } = job.data;
 
     try {
-      logger.info(`[PriceSyncWorker] Processing job for bag ${bagId} with updateType ${updateType}`);
+      logger.info(
+        `[PriceSyncWorker] Processing job for bag ${bagId} with updateType ${updateType}`
+      );
 
       const plainResponse = await axios.post(
         `${env.AI_SERVER_URL}/bags/price`,
@@ -37,6 +53,7 @@ export class PriceSyncWorker extends BaseWorker {
           leather,
           hardware,
           size,
+          variant,
         }
       );
 
@@ -62,10 +79,12 @@ export class PriceSyncWorker extends BaseWorker {
       if (updateType === 'HISTORICAL') {
         /* -------------------------- historicalValue build ------------------------- */
         // Get current historicalValue
-        const bag = await UserCollection.findById(bagId).select('historicalValue');
-        const historicalValue: Record<string, IYearValue> = {
-          ...(bag?.historicalValue ?? {}),
-        } as Record<string, IYearValue>;
+        const bag = await UserCollection.findById(bagId)
+          .select('historicalValue')
+          .lean();
+        const historicalValue: Record<string, IYearValue> = JSON.parse(
+          JSON.stringify(bag?.historicalValue ?? {})
+        );
 
         for (const entry of priceHistory) {
           const [monthAbbr, year] = entry.period.split(' ');
@@ -86,11 +105,18 @@ export class PriceSyncWorker extends BaseWorker {
         updateFields.historicalValue = historicalValue;
       }
 
-      await UserCollection.findByIdAndUpdate(bagId, { $set: updateFields });
+      await UserCollection.updateOne(
+        { _id: bagId },
+        { $set: updateFields },
+        { runValidators: true }
+      );
 
       logger.info(`[PriceSyncWorker] Successfully updated bag ${bagId}`);
     } catch (error) {
-      logger.error(`[PriceSyncWorker] Failed to process job for bag ${bagId}:`, error);
+      logger.error(
+        `[PriceSyncWorker] Failed to process job for bag ${bagId}:`,
+        error
+      );
       throw error;
     }
   }

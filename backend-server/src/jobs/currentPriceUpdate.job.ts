@@ -39,7 +39,7 @@ const performPriceUpdate = async (): Promise<void> => {
       .populate('brandId', 'brandName')
       .populate('modelId', 'modelName')
       .select(
-        '_id brandId modelId bagColor condition material hardwareColor size'
+        '_id brandId modelId bagColor condition material hardwareColor size variant'
       );
 
     if (publishedBags.length === 0) {
@@ -65,6 +65,7 @@ const performPriceUpdate = async (): Promise<void> => {
         hardware: bag.hardwareColor,
         size: bag.size,
         updateType,
+        variant:bag.variant
       };
 
       await priceSyncQueue.addPriceSyncJob(jobData);
