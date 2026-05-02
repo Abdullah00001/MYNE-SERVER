@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import OPENAI_API_KEY, SERP_API_KEY
+from app.services.brand_config import BRAND_CONFIG, get_knowledge_file
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,26 +28,6 @@ for filename in os.listdir(KNOWLEDGE_DIR):
 
 logger.info(f"Loaded knowledge for: {list(KNOWLEDGE.keys())}")
 
-BRAND_FILES = {
-    "hermès": "hermes",
-    "hermes": "hermes",
-    "chanel": "chanel",
-    "louis vuitton": "louis_vuitton",
-    "dior": "dior",
-    "bottega veneta": "bottega_veneta",
-    "prada": "prada",
-    "saint laurent": "saint_laurent",
-    "celine": "celine",
-    "céline": "celine",
-    "gucci": "gucci",
-    "loewe": "loewe",
-    "fendi": "fendi",
-    "valentino": "valentino",
-    "balenciaga": "balenciaga",
-    "givenchy": "givenchy",
-    "burberry": "burberry",
-    "miu miu": "miu_miu",
-}
 
 # Pydantic models for response validation
 
@@ -58,7 +39,7 @@ class BagMatch(BaseModel):
     confidence: int = Field(default=0, ge=0, le=100)
     confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
     estimatedValueEUR: int = Field(default=0, ge=0)
-    detectedVariant: Optional[str] = None
+    detectedConstruction: Optional[str] = None
     detectedColor: str
     detectedLeather: str
     detectedHardware: str = Field(default="Not visible")
@@ -67,7 +48,7 @@ class BagMatch(BaseModel):
     alternativeColors: List[str] = []
     detectedYear: Optional[str] = None
     stampLetter: Optional[str] = None
-    specialNotes: str = Field(default="")
+    special_variant: str = Field(default="")
     isSpecialOrder: bool = Field(default=False)
     isExotic: bool = Field(default=False)
     isBiColor: bool = Field(default=False)
@@ -107,7 +88,7 @@ RULES:
 - If lighting affects color, still commit to closest single color.
 - detectedLeather: choose ONLY from allowed values in knowledge base.
 - detectedModel: choose ONLY from allowed values in knowledge base.
-- detectedVariant: "Sellier"=rigid/outside stitch, "Retourne"=soft/inside stitch, "Pochette"=clutch. 
+- detectedConstruction: "Sellier"=rigid/outside stitch, "Retourne"=soft/inside stitch, "Pochette"=clutch. Null if not applicable.
 - detectedSize: always output integer. Estimate from proportions if not visible.
 - stampLetter: Hermès only, null for all other brands.
 - colorAccuracy: 0-100 integer.
@@ -120,7 +101,7 @@ RULES:
 - Never use "/" in detectedColor — use secondaryColor field instead
 - "Not visible" for any feature that cannot be determined.
 - imageSearchQuery format rules:
-  Standard bag: "{Brand} {Model} {Size} {Variant} {Color} {Leather} {Hardware}"
+  Standard bag: "{Brand} {Model} {Size} {Construction} {Color} {Leather} {Hardware}"
   Bi-color bag: "{Brand} {Model} {Size}HSS bicolor {PrimaryColor} {SecondaryColor}"
   HSS bag: "{Brand} {Model} {Size} HSS special order"
   Special Order: "{Brand} {Model} {Size} HSS special order {Color}"
@@ -129,17 +110,17 @@ RULES:
 
 Return ONLY this JSON shape:
 {"matches":[
-  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
-      "Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
-  {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
-  {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":[
-      "...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery ":"..."}
+  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedConstruction":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
+      "Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","special_variant":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
+  {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
+  {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
+  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":[
+      "...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery ":"..."}
 ]}
 
 IMPORTANT: Always return exactly 4 matches.
 - Rank 1: most likely identification with highest confidence
-- Rank 2: second most likely alternative (same model and different variant)
+- Rank 2: second most likely alternative (same model and different construction)
 - Rank 3: third alternative (could be different brand if uncertain)
 - Rank 4: fourth alternative (least likely but plausible)
 Each match must have genuinely different brand/model combinations. Never repeat the same brand+model twice.'''
@@ -237,17 +218,17 @@ Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, 
         data = response.json()
 
     raw = data["choices"][0]["message"]["content"].strip().lower()
-    logger.info(f"Raw brand detected: {raw}")
 
-    # Direct lookup in BRAND_FILES
-    brand_key = BRAND_FILES.get(raw)
-    if brand_key:
-        logger.info(f"Brand matched: {raw} -> {brand_key}")
-        return brand_key
+    # Direct match
+    if raw in BRAND_CONFIG:
+        key = get_knowledge_file(raw)
+        logger.info(f"Brand matched: {raw} -> {key}")
+        return key
 
-    # If no exact match, try partial match
-    for brand_name, key in BRAND_FILES.items():
+    # Partial match
+    for brand_name in BRAND_CONFIG:
         if brand_name in raw or raw in brand_name:
+            key = get_knowledge_file(brand_name)
             logger.info(f"Brand partial match: {raw} -> {key}")
             return key
 
@@ -283,9 +264,9 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
     brand_key = "unknown"
     for title in lens_data["titles"]:
         title_lower = title.lower()
-        for brand_name, key in BRAND_FILES.items():
+        for brand_name in BRAND_CONFIG:
             if brand_name in title_lower:
-                brand_key = key
+                brand_key = get_knowledge_file(brand_name)
                 break
         if brand_key != "unknown":
             break
