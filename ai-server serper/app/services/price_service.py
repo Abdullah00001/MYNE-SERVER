@@ -7,26 +7,6 @@ from app.services.brand_config import is_investment_piece, is_depreciating
 
 
 # ─────────────────────────────────────────
-# INVESTMENT BRAND CONFIG
-# ─────────────────────────────────────────
-
-# These brands/models appreciate in value — resale > retail
-# Do NOT apply condition multipliers to these
-INVESTMENT_BRANDS = {
-    "hermès": {"birkin", "kelly", "constance", "lindy", "picotin"},
-    "chanel": {"classic flap", "2.55", "boy bag"},
-    "goyard": {"saint louis", "artois"},
-}
-
-# Brands where resale is always BELOW retail — apply full multipliers
-DEPRECIATING_BRANDS = {
-    "louis vuitton", "gucci", "prada", "dior",
-    "bottega veneta", "balenciaga", "givenchy",
-    "saint laurent", "celine", "fendi", "loewe",
-    "valentino", "miu miu", "burberry"
-}
-
-# ─────────────────────────────────────────
 # CONDITION MULTIPLIERS
 # ─────────────────────────────────────────
 
@@ -39,12 +19,20 @@ CONDITION_MULTIPLIER = {
     "Poor":      0.45,
 }
 
-SPECIAL_MULTIPLIER = {
-    "HSS":      1.80,   # Two-tone special order
-    "Bicolor":  1.15,   # Two color panels
-    "Cargo":    1.25,   # Exterior pocket design
-    "Standard": 1.00,
-}
+
+def get_special_factor(special_variant: str) -> float:
+    """Smart lookup — works even with free text special_variant."""
+    if not special_variant:
+        return 1.0
+    v = special_variant.lower()
+    if "hss" in v:
+        return 1.80
+    if "bicolor" in v or "bi-color" in v or "two tone" in v:
+        return 1.15
+    if "cargo" in v:
+        return 1.25
+    return 1.00
+
 
 today = datetime.today().strftime("%B %Y")  # e.g. "April 2026"
 
@@ -127,10 +115,10 @@ async def get_current_price(
     is_depreciating_brand = is_depreciating(brand)
 
     condition_factor = CONDITION_MULTIPLIER.get(condition.capitalize(), 1.0)
-    special_factor = SPECIAL_MULTIPLIER.get(special_variant, 1.0)
+    special_factor = get_special_factor(special_variant)
 
     # Only apply special multiplier for Hermes HSS
-    if special_variant == "HSS" and brand.lower() not in ["hermès", "hermes"]:
+    if "hss" in special_variant.lower() and brand.lower() not in ["hermès", "hermes"]:
         special_factor = 1.0
 
     if is_investment:
