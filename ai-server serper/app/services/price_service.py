@@ -4,6 +4,27 @@ from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
 from datetime import datetime
 
+
+# ─────────────────────────────────────────
+# INVESTMENT BRAND CONFIG
+# ─────────────────────────────────────────
+
+# These brands/models appreciate in value — resale > retail
+# Do NOT apply condition multipliers to these
+INVESTMENT_BRANDS = {
+    "hermès": {"birkin", "kelly", "constance", "lindy", "picotin"},
+    "chanel": {"classic flap", "2.55", "boy bag"},
+    "goyard": {"saint louis", "artois"},
+}
+
+# Brands where resale is always BELOW retail — apply full multipliers
+DEPRECIATING_BRANDS = {
+    "louis vuitton", "gucci", "prada", "dior",
+    "bottega veneta", "balenciaga", "givenchy",
+    "saint laurent", "celine", "fendi", "loewe",
+    "valentino", "miu miu", "burberry"
+}
+
 # ─────────────────────────────────────────
 # CONDITION MULTIPLIERS
 # ─────────────────────────────────────────
@@ -62,6 +83,7 @@ async def get_current_price(
     color: str,
     leather: str,
     hardware: str,
+    construction: str,
     size: str,
     condition: str,
     special_variant: str = "Standard",
@@ -74,29 +96,66 @@ async def get_current_price(
     """
 
     # ── Step 1: Real market data ──────────────────────────
-    market = await fetch_all_market_prices(brand, model, size, leather, color)
+    market = await fetch_all_market_prices(brand, model, size, leather, color, condition, construction, special_variant)
 
-    base_price = market["weighted_price"]
+    base_price = market["resale_price"] or 0
     data_points = market["data_points"]
     needs_gpt = market["needs_gpt_fallback"]
 
     sources_used = []
-    if market["retail_prices"]:
-        sources_used.append("Google Shopping (retail)")
-    if market["reseller_prices"]:
-        sources_used.append("Vestiaire/1stDibs/RealReal")
-    if market["ebay_prices"]:
-        sources_used.append("eBay")
+    if market["retail_sources"]:
+        sources_used.append({
+            "type": "Official Retail",
+            "sites": list(set(s["source"] for s in market["retail_sources"]))
+        })
+    if market["reseller_sources"]:
+        sources_used.append({
+            "type": "Luxury Resellers",
+            "sites": list(set(s["source"] for s in market["reseller_sources"]))
+        })
+    if market["ebay_sources"]:
+        sources_used.append({
+            "type": "eBay",
+            "sites": list(set(s["source"] for s in market["ebay_sources"]))
+        })
 
     # ── Step 2: Apply multipliers ─────────────────────────
-    condition_factor = CONDITION_MULTIPLIER.get(condition, 1.0)
+    # ── Step 2: Smart multiplier logic ─────────────────────────
+    brand_lower = brand.lower()
+    model_lower = model.lower()
+
+    # Check if this is an investment brand/model
+    is_investment = (
+        brand_lower in INVESTMENT_BRANDS and
+        any(m in model_lower for m in INVESTMENT_BRANDS[brand_lower])
+    )
+
+    is_depreciating = brand_lower in DEPRECIATING_BRANDS
+
+    condition_factor = CONDITION_MULTIPLIER.get(condition.capitalize(), 1.0)
     special_factor = SPECIAL_MULTIPLIER.get(special_variant, 1.0)
 
     # Only apply special multiplier for Hermes HSS
-    if special_variant == "HSS" and brand.lower() not in ["hermès", "hermes"]:
+    if special_variant == "HSS" and brand_lower not in ["hermès", "hermes"]:
         special_factor = 1.0
 
-    adjusted_price = round(base_price * condition_factor * special_factor, 2)
+    if is_investment:
+        # Investment bags — trust resale price as-is
+        # Only apply special variant multiplier (HSS, Bicolor)
+        adjusted_price = round(base_price * special_factor, 2)
+        pricing_note = "Investment piece — resale price reflects market premium over retail"
+
+    elif is_depreciating:
+        # Depreciating brands — apply full condition multiplier
+        adjusted_price = round(
+            base_price * condition_factor * special_factor, 2)
+        pricing_note = f"Condition ({condition}) and variant ({special_variant}) multipliers applied"
+
+    else:
+        # Unknown brand — apply mild condition adjustment only
+        mild_factor = 1 + (condition_factor - 1) * 0.5  # half the multiplier
+        adjusted_price = round(base_price * mild_factor * special_factor, 2)
+        pricing_note = "Partial condition adjustment applied"
 
     # ── Step 3: GPT fallback / refinement ────────────────
     if needs_gpt or adjusted_price == 0:
@@ -110,6 +169,7 @@ Leather: {leather}
 Hardware: {hardware}
 Size: {size}
 Condition: {condition}
+Construction: {construction}
 Special Variant: {special_variant}
 
 {"The following real market prices were found but are limited: " + str(market) if base_price > 0 else "No real market data was found."}
@@ -123,7 +183,6 @@ Return ONLY a JSON object with these fields:
     - price_range: object with min and max (EUR)
     - retail_price: number (EUR, new from boutique)
     - resale_premium: number (% premium over retail, can be negative)
-    - reasoning: string (1-2 sentences)
     - color_premium: boolean
         """
         result = await call_gpt(prompt)
@@ -136,15 +195,12 @@ Return ONLY a JSON object with these fields:
         "current_value": adjusted_price,
         "currency": "EUR",
         "confidence": "high" if data_points >= 6 else "medium",
-        "trend": "stable",
         "change_percentage": 0.0,
         "price_range": {"min": round(adjusted_price * 0.9, 2), "max": round(adjusted_price * 1.1, 2)},
-        "retail_price": None,
+        "retail_price": market["retail_price"],
         "resale_premium": None,
         "sources_used": sources_used,
         "data_points": data_points,
-        "reasoning": f"Based on {data_points} real market listings. Condition ({condition}) and variant ({special_variant}) multipliers applied.",
-        "color_premium": False,
     }
 
 
@@ -216,7 +272,9 @@ async def get_full_valuation(
     hardware: str,
     size: str,
     condition: str,
+    construction: str,
     special_variant: str = "Standard",
+    purchase_price: float = None,   # ← add this
 ) -> dict:
     """
     Full valuation: current price + 10-month history.
@@ -228,14 +286,12 @@ async def get_full_valuation(
         "confidence": "high",
         "sources_used": [...],
         "data_points": 7,
-        "reasoning": "...",
         "color_premium": true,
         "history": [
             {"month": "Jun 2024", "price": 8600},
             ...
         ],
-        "trend": "appreciating",
-        "trend_note": "..."
+        "trend": "appreciating"
     }
     """
 
@@ -248,6 +304,7 @@ async def get_full_valuation(
         hardware=hardware,
         size=size,
         condition=condition,
+        construction=construction,
         special_variant=special_variant,
     )
 
@@ -264,10 +321,32 @@ async def get_full_valuation(
     )
 
     # Step 3: Merge and return
+# Step 3: Calculate change percentage
+    current_price = current_result.get("current_value", 0)
+    history = history_result.get("history", [])
+
+    if purchase_price and purchase_price > 0:
+        # Compare with actual purchase price
+        change_percentage = round(
+            ((current_price - purchase_price) / purchase_price) * 100, 2)
+        change_basis = "purchase_price"
+    elif history:
+        # Compare with average of historical prices
+        avg_historical = sum(h["avg_price"] for h in history) / len(history)
+        change_percentage = round(
+            ((current_price - avg_historical) / avg_historical) * 100, 2)
+        change_basis = "historical_average"
+    else:
+        change_percentage = 0.0
+        change_basis = "none"
+
+    # Step 4: Merge and return
     return {
         **current_result,
+        "change_percentage": change_percentage,
+        "change_basis": change_basis,
+        "purchase_price": purchase_price,
         "price_history": {
-            "history": history_result.get("history", [])
-        },
-        "trend_note": history_result.get("trend_note", ""),
+            "history": history
+        }
     }

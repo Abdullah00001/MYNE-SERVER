@@ -22,7 +22,9 @@ class ConfirmBagRequest(BaseModel):
     leather: str = ""
     hardware: str = ""
     size: str = ""
+    construction: str = ""
     special_variant: str = "Standard"
+    purchase_price: Optional[float] = None   # ← add this
 
 
 # ─────────────────────────────────────────
@@ -71,112 +73,6 @@ async def identify_upload(
 
 
 # ─────────────────────────────────────────
-# CONFIRM + SAVE BAG
-# ─────────────────────────────────────────
-
-@router.post("/bags/confirm")
-async def confirm_bag(
-    user_id: str,
-    brand: str,
-    model: str,
-    color: str,
-    condition: str,
-    leather: str = "",
-    hardware: str = "",
-    size: str = "",
-    year: str = "",
-    image_url: str = "",
-    special_variant: str = "Standard",
-    ai_matches: list = None
-):
-    ai_matches = ai_matches or []
-
-    # 1. Get full valuation (current price + history)
-    valuation = await get_full_valuation(
-        brand=brand,
-        model=model,
-        color=color,
-        leather=leather,
-        hardware=hardware,
-        size=size,
-        condition=condition,
-        special_variant=special_variant,
-    )
-
-    # 2. Resolve or create brand document
-    brand_doc = await db["brands"].find_one({"name": {"$regex": brand, "$options": "i"}})
-    if not brand_doc:
-        brand_result = await db["brands"].insert_one({"name": brand, "created_at": datetime.utcnow()})
-        brand_id = str(brand_result.inserted_id)
-    else:
-        brand_id = str(brand_doc["_id"])
-
-    # 3. Resolve or create model document
-    model_doc = await db["models"].find_one({"name": {"$regex": model, "$options": "i"}})
-    if not model_doc:
-        model_result = await db["models"].insert_one({
-            "name": model,
-            "brand_id": brand_id,
-            "created_at": datetime.utcnow()
-        })
-        model_id = str(model_result.inserted_id)
-    else:
-        model_id = str(model_doc["_id"])
-
-    # 4. Build and save bag document
-    doc = {
-        "brand_id":       brand_id,
-        "model_id":       model_id,
-        "user_id":        user_id,
-        "primary_image":  image_url,
-        "images":         [],
-        "bag_color":      color,
-        "leather_type":   leather,
-        "hardware_color": hardware,
-        "size":           size,
-        "condition":      condition,
-        "production_year": int(year[:4]) if year and year[:4].isdigit() else None,
-        "price_status": {
-            "current_value":      valuation.get("current_price", 0),
-            "currency":           "EUR",
-            "confidence":         valuation.get("confidence", "low"),
-            "trend":              valuation.get("trend", "stable"),
-            "trend_note":         valuation.get("trend_note", ""),
-            "color_premium":      valuation.get("color_premium", False),
-        },
-        "price_history":          valuation.get("history", []),
-        "price_sources":          valuation.get("sources_used", []),
-        "price_data_points":      valuation.get("data_points", 0),
-        "price_reasoning":        valuation.get("reasoning", ""),
-        "last_price_updated_at":  datetime.utcnow(),
-        "purchase_info":          None,
-        "notes":                  None,
-        "receipt":                None,
-        "is_archived":            False,
-        "publish_status":         "pending",
-        "created_at":             datetime.utcnow(),
-        "ai_matches":             ai_matches,
-    }
-
-    result = await usercollections.insert_one(doc)
-
-    return {
-        "status": 200,
-        "success": True,
-        "data": {
-            "id":           str(result.inserted_id),
-            "brand":        brand,
-            "model":        model,
-            "brand_id":     brand_id,
-            "model_id":     model_id,
-            "price_status": doc["price_status"],
-            "price_history": doc["price_history"],
-            "image_url":    image_url
-        }
-    }
-
-
-# ─────────────────────────────────────────
 # GET PRICE + HISTORY (standalone endpoint)
 # ─────────────────────────────────────────
 
@@ -194,7 +90,9 @@ async def get_price(req: ConfirmBagRequest):
         hardware=req.hardware,
         size=req.size,
         condition=req.condition,
+        construction=req.construction,
         special_variant=req.special_variant,
+        purchase_price=req.purchase_price,   # ← add this
     )
 
     return {
