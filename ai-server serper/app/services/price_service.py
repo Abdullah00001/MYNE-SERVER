@@ -3,6 +3,7 @@ import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
 from datetime import datetime
+from app.services.brand_config import is_investment_piece, is_depreciating
 
 
 # ─────────────────────────────────────────
@@ -39,8 +40,9 @@ CONDITION_MULTIPLIER = {
 }
 
 SPECIAL_MULTIPLIER = {
-    "HSS":      1.80,   # Hermes Special Order
-    "Bicolor":  1.15,
+    "HSS":      1.80,   # Two-tone special order
+    "Bicolor":  1.15,   # Two color panels
+    "Cargo":    1.25,   # Exterior pocket design
     "Standard": 1.00,
 }
 
@@ -121,22 +123,14 @@ async def get_current_price(
 
     # ── Step 2: Apply multipliers ─────────────────────────
     # ── Step 2: Smart multiplier logic ─────────────────────────
-    brand_lower = brand.lower()
-    model_lower = model.lower()
-
-    # Check if this is an investment brand/model
-    is_investment = (
-        brand_lower in INVESTMENT_BRANDS and
-        any(m in model_lower for m in INVESTMENT_BRANDS[brand_lower])
-    )
-
-    is_depreciating = brand_lower in DEPRECIATING_BRANDS
+    is_investment = is_investment_piece(brand, model)
+    is_depreciating_brand = is_depreciating(brand)
 
     condition_factor = CONDITION_MULTIPLIER.get(condition.capitalize(), 1.0)
     special_factor = SPECIAL_MULTIPLIER.get(special_variant, 1.0)
 
     # Only apply special multiplier for Hermes HSS
-    if special_variant == "HSS" and brand_lower not in ["hermès", "hermes"]:
+    if special_variant == "HSS" and brand.lower() not in ["hermès", "hermes"]:
         special_factor = 1.0
 
     if is_investment:
@@ -145,7 +139,7 @@ async def get_current_price(
         adjusted_price = round(base_price * special_factor, 2)
         pricing_note = "Investment piece — resale price reflects market premium over retail"
 
-    elif is_depreciating:
+    elif is_depreciating_brand:
         # Depreciating brands — apply full condition multiplier
         adjusted_price = round(
             base_price * condition_factor * special_factor, 2)

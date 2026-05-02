@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import OPENAI_API_KEY, SERP_API_KEY
+from app.services.brand_config import BRAND_CONFIG, get_knowledge_file
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,26 +28,6 @@ for filename in os.listdir(KNOWLEDGE_DIR):
 
 logger.info(f"Loaded knowledge for: {list(KNOWLEDGE.keys())}")
 
-BRAND_FILES = {
-    "hermès": "hermes",
-    "hermes": "hermes",
-    "chanel": "chanel",
-    "louis vuitton": "louis_vuitton",
-    "dior": "dior",
-    "bottega veneta": "bottega_veneta",
-    "prada": "prada",
-    "saint laurent": "saint_laurent",
-    "celine": "celine",
-    "céline": "celine",
-    "gucci": "gucci",
-    "loewe": "loewe",
-    "fendi": "fendi",
-    "valentino": "valentino",
-    "balenciaga": "balenciaga",
-    "givenchy": "givenchy",
-    "burberry": "burberry",
-    "miu miu": "miu_miu",
-}
 
 # Pydantic models for response validation
 
@@ -237,17 +218,17 @@ Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, 
         data = response.json()
 
     raw = data["choices"][0]["message"]["content"].strip().lower()
-    logger.info(f"Raw brand detected: {raw}")
 
-    # Direct lookup in BRAND_FILES
-    brand_key = BRAND_FILES.get(raw)
-    if brand_key:
-        logger.info(f"Brand matched: {raw} -> {brand_key}")
-        return brand_key
+    # Direct match
+    if raw in BRAND_CONFIG:
+        key = get_knowledge_file(raw)
+        logger.info(f"Brand matched: {raw} -> {key}")
+        return key
 
-    # If no exact match, try partial match
-    for brand_name, key in BRAND_FILES.items():
+    # Partial match
+    for brand_name in BRAND_CONFIG:
         if brand_name in raw or raw in brand_name:
+            key = get_knowledge_file(brand_name)
             logger.info(f"Brand partial match: {raw} -> {key}")
             return key
 
@@ -283,9 +264,9 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
     brand_key = "unknown"
     for title in lens_data["titles"]:
         title_lower = title.lower()
-        for brand_name, key in BRAND_FILES.items():
+        for brand_name in BRAND_CONFIG:
             if brand_name in title_lower:
-                brand_key = key
+                brand_key = get_knowledge_file(brand_name)
                 break
         if brand_key != "unknown":
             break

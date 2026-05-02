@@ -3,36 +3,13 @@ import re
 import httpx
 import asyncio
 from app.config import SERPER_API_KEY
+from app.services.brand_config import get_official_site
 
 SERPER_HEADERS = {
     "X-API-KEY": SERPER_API_KEY,
     "Content-Type": "application/json"
 }
 
-# ─────────────────────────────────────────
-# BRAND CONFIG
-# ─────────────────────────────────────────
-
-BRAND_OFFICIAL_SITES = {
-    "louis vuitton": "louisvuitton.com",
-    "gucci": "gucci.com",
-    "prada": "prada.com",
-    "bottega veneta": "bottegaveneta.com",
-    "saint laurent": "ysl.com",
-    "celine": "celine.com",
-    "loewe": "loewe.com",
-    "fendi": "fendi.com",
-    "balenciaga": "balenciaga.com",
-    "burberry": "burberry.com",
-    "valentino": "valentino.com",
-    "miu miu": "miumiu.com",
-    "dior": "dior.com",
-    "givenchy": "givenchy.com",
-    "chanel": "chanel.com",
-}
-
-# These brands have NO public retail prices — skip to resale only
-NO_RETAIL_BRANDS = {"hermès", "hermes", "goyard", "moynat"}
 
 # ─────────────────────────────────────────
 # UTILITIES
@@ -221,18 +198,10 @@ async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, c
     Fetch retail prices from official brand websites.
     Skips brands with no public pricing (Hermès, Goyard).
     """
-    brand_lower = brand.lower()
-
-    # Skip retail fetch for brands with no public prices
-    if brand_lower in NO_RETAIL_BRANDS:
-        print(
-            f"[fetch_retail_prices] Skipping {brand} — no public retail prices")
-        return []
-
-    # Get official site for this brand
-    official_site = BRAND_OFFICIAL_SITES.get(brand_lower)
+    official_site = get_official_site(brand)
     if not official_site:
-        print(f"[fetch_retail_prices] No official site mapped for {brand}")
+        print(
+            f"[fetch_retail_prices] No public retail prices for {brand} — skipping")
         return []
 
     # Search Google restricted to official site only
@@ -275,7 +244,7 @@ async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str,
     query_1 = f"{base} site:vestiaire.com OR site:therealreal.com OR site:1stdibs.com"
     query_2 = f"{base} site:rebag.com OR site:fashionphile.com OR site:madisonavenuecouture.com"
     query_3 = f"{base} site:sothebys.com OR site:saclab.com OR site:ginzaxiaoma.com OR site:labellov.com"
-    query_4 = f"{base} site:baghunter.com OR site:collector-square.com OR site:privéporter.com"
+    query_4 = f"{base} site:baghunter.com OR site:collector-square.com OR site:privéporter.com OR site:xupes.com"
 
     async def search(q: str) -> list:
         try:
@@ -359,10 +328,22 @@ async def fetch_all_market_prices(
         retail_sorted[len(retail_sorted) // 2]["eur"], 2) if retail_sorted else None
 
     # Compute resale median
+# Compute resale price
     all_resale = reseller + ebay
     all_resale_sorted = sorted(all_resale, key=lambda x: x["eur"])
-    resale_price = round(all_resale_sorted[len(
-        all_resale_sorted) // 2]["eur"], 2) if all_resale_sorted else None
+
+    if all_resale_sorted:
+        if len(all_resale_sorted) < 3:
+            # sparse data — take highest price
+            resale_price = round(all_resale_sorted[-1]["eur"], 2)
+            print(
+                f"[fetch_all_market_prices] Sparse data — using highest price: {resale_price}")
+        else:
+            # enough data — use median
+            resale_price = round(
+                all_resale_sorted[len(all_resale_sorted) // 2]["eur"], 2)
+    else:
+        resale_price = None
 
     total_points = len(retail) + len(reseller) + len(ebay)
 
@@ -409,13 +390,78 @@ async def fetch_all_market_prices(
 # ─────────────────────────────────────────
 
 
+# async def fetch_bag_image(query: str) -> dict:
+#     try:
+#         async with httpx.AsyncClient(timeout=20) as client:
+#             res = await client.post(
+#                 "https://google.serper.dev/images",
+#                 headers=SERPER_HEADERS,
+#                 json={"q": query}
+#             )
+#             res.raise_for_status()
+#             data = res.json()
+
+#         for result in data.get("images", []):
+#             thumbnail = result.get("thumbnailUrl", "")
+#             image = result.get("imageUrl", "")
+#             if thumbnail or image:
+#                 return {"thumbnailUrl": thumbnail, "imageUrl": image}
+
+#         return {"thumbnailUrl": "", "imageUrl": ""}
+
+#     except Exception as e:
+#         print(f"[fetch_bag_image] failed: {e}")
+#         return {"thumbnailUrl": "", "imageUrl": ""}
+
+
 async def fetch_bag_image(query: str) -> dict:
+    # All luxury resale + auction sites for clean product images
+    site_filter = " OR ".join([
+        "site:vestiaire.com",
+        "site:therealreal.com",
+        "site:1stdibs.com",
+        "site:rebag.com",
+        "site:fashionphile.com",
+        "site:madisonavenuecouture.com",
+        "site:baghunter.com",
+        "site:collector-square.com",
+        "site:sothebys.com",
+        "site:christies.com",
+        "site:bonhams.com",
+        "site:labellov.com",
+        "site:saclab.com",
+        "site:privéporter.com",
+        "site:xupes.com",
+        "site:ginzaxiaoma.com",
+    ])
+    refined_query = f"{query} {site_filter}"
+
     try:
+        # First attempt — trusted luxury sites only
         async with httpx.AsyncClient(timeout=20) as client:
             res = await client.post(
                 "https://google.serper.dev/images",
                 headers=SERPER_HEADERS,
-                json={"q": query}
+                json={"q": refined_query, "num": 5}
+            )
+            res.raise_for_status()
+            data = res.json()
+
+        for result in data.get("images", []):
+            thumbnail = result.get("thumbnailUrl", "")
+            image = result.get("imageUrl", "")
+            if thumbnail or image:
+                print(
+                    f"[fetch_bag_image] Found image from: {result.get('domain', 'unknown')}")
+                return {"thumbnailUrl": thumbnail, "imageUrl": image}
+
+        # Fallback — open search if nothing found
+        print(f"[fetch_bag_image] No results from luxury sites, trying open search")
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.post(
+                "https://google.serper.dev/images",
+                headers=SERPER_HEADERS,
+                json={"q": query, "num": 5}
             )
             res.raise_for_status()
             data = res.json()
