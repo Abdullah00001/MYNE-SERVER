@@ -39,25 +39,39 @@ class BagMatch(BaseModel):
     confidence: int = Field(default=0, ge=0, le=100)
     confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
     estimatedValueEUR: int = Field(default=0, ge=0)
+
+    # Physical attributes
     detectedConstruction: Optional[str] = None
-    detectedColor: str
-    detectedLeather: str
+    detectedColors: List[str] = Field(default=[])   # ALL colors as list
+    detectedLeather: str = Field(default="Not visible")
     detectedHardware: str = Field(default="Not visible")
-    detectedSize: str
+    detectedSize: str = Field(default="Not visible")
     colorAccuracy: int = Field(default=0, ge=0, le=100)
-    alternativeColors: List[str] = []
+    alternativeColors: List[str] = Field(default=[])
+
+    # Identity
     detectedYear: Optional[str] = None
     stampLetter: Optional[str] = None
+    # "Arlequin", "So Black", "Cargo" etc
+    editionName: Optional[str] = None
+    # free text: HSS, Bicolor, Standard etc
     special_variant: str = Field(default="")
+
+    # Flags
     isSpecialOrder: bool = Field(default=False)
     isExotic: bool = Field(default=False)
+    isLimitedEdition: bool = Field(default=False)
     isBiColor: bool = Field(default=False)
     isTriColor: bool = Field(default=False)
+    isMultiColor: bool = Field(default=False)      # 4+ colors
     isHSS: bool = Field(default=False)
-    secondaryColor: Optional[str] = None
-    tertiaryColor: Optional[str] = None
-    condition: str
+
+    # Condition & search
+    condition: str = Field(default="Not visible")
+    # analysis: str = Field(default="")
     imageSearchQuery: str = Field(default="")
+
+    # Populated after identification
     imageUrl: str = Field(default="")
     thumbnailUrl: str = Field(default="")
 
@@ -66,10 +80,17 @@ class BagMatch(BaseModel):
     def coerce_confidence(cls, v):
         return int(float(v) * 100) if isinstance(v, float) and v <= 1 else int(v)
 
-    @field_validator('detectedSize', mode='before')   # ← add this
+    @field_validator('detectedSize', mode='before')
     @classmethod
     def coerce_size(cls, v):
         return str(v)
+
+    @field_validator('detectedColors', mode='before')
+    @classmethod
+    def coerce_colors(cls, v):
+        if isinstance(v, str):
+            return [v]  # handle if AI returns string instead of list
+        return v
 
     @field_validator('confidenceLabel')
     @classmethod
@@ -79,49 +100,82 @@ class BagMatch(BaseModel):
         return v
 
 
-PROMPT = '''You are a product cataloguing assistant. Extract visual attributes from the product photo(s) using the reference data below. Return ONLY valid JSON.
+PROMPT = '''You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 4 matches ordered by confidence.
 
-RULES:
-- Be decisive. Never use "maybe", "possibly". If uncertain, pick closest match.
-- detectedColor: EXACT official brand color name only. Never generic (e.g. never "blue", always "Bleu Nuit").
-- If lighting affects color, still commit to closest single color.
-- detectedLeather: choose ONLY from allowed values in knowledge base.
-- detectedModel: choose ONLY from allowed values in knowledge base.
-- detectedConstruction: "Sellier"=rigid/outside stitch, "Retourne"=soft/inside stitch, "Pochette"=clutch. Null if not applicable.
-- detectedSize: always output integer. Estimate from proportions if not visible.
-- stampLetter: Hermès only, null for all other brands.
-- colorAccuracy: 0-100 integer.
-- alternativeColors: 2-3 alternatives if ambiguous, [] if certain.
-- secondaryColor: null unless isBiColor or isHSS is true
-- tertiaryColor: null unless isTriColor is true
-- isBiColor: true only if two distinct color panels clearly visible
-- isTriColor: true only if three distinct color panels clearly visible
-- isHSS: true only if BOTH two-tone leather AND contrasting stitching visible
-- Never use "/" in detectedColor — use secondaryColor field instead
-- "Not visible" for any feature that cannot be determined.
-- imageSearchQuery format rules:
-  Standard bag: "{Brand} {Model} {Size} {Construction} {Color} {Leather} {Hardware}"
-  Bi-color bag: "{Brand} {Model} {Size}HSS bicolor {PrimaryColor} {SecondaryColor}"
-  HSS bag: "{Brand} {Model} {Size} HSS special order"
-  Special Order: "{Brand} {Model} {Size} HSS special order {Color}"
-  Exotic leather: "{Brand} {Model} {Size} {ExoticLeather} {Color}"
-  Never put two colors side by side without "bicolor" between them.
+IDENTIFICATION RULES:
+- Be decisive. Never use "maybe", "possibly". Always commit to the closest match.
+- detectedColors: list ALL visible colors using EXACT official brand names. Never generic.
+  e.g. never ["blue", "orange"] — always ["Bleu Nuit", "Orange H"]
+  For multicolor bags list ALL panels: ["Orange H", "Sanguine", "Bleu Hydra", "Gold", "Etain", "Bleu Lin"]
+- detectedLeather: exact official leather name (Togo, Clemence, Epsom, Caviar, Saffiano etc)
+- detectedConstruction: "Sellier"=rigid/outside stitch | "Retourne"=soft/inside stitch | "Pochette"=clutch | null if not applicable
+- detectedSize: integer only. Estimate from proportions if not visible.
+- stampLetter: Hermès date stamp letter only. Null for all other brands.
+- colorAccuracy: 0-100 confidence in color detection
+- alternativeColors: 2-3 alternatives if uncertain, [] if certain
+- editionName: named edition if identifiable e.g. "Arlequin", "So Black", "Cargo", "Shadow", "Faubourg"
 
-Return ONLY this JSON shape:
+FLAG RULES:
+- isBiColor: true ONLY if exactly 2 distinct color panels visible
+- isTriColor: true ONLY if exactly 3 distinct color panels visible  
+- isMultiColor: true if 4+ distinct color panels visible (e.g. Arlequin)
+- isHSS: true if two-tone leather AND/OR contrasting stitching visible
+- isSpecialOrder: true if custom colorway, HSS, or made-to-order
+- isLimitedEdition: true if known limited production run (Arlequin, So Black, Faubourg etc)
+- isExotic: true if crocodile, ostrich, lizard, python, or other exotic leather
+
+IMAGE SEARCH QUERY RULES:
+- Always include: Brand + Model + Size + all detectedColors + Leather + Hardware
+- Add editionName if not empty
+- Add special_variant if not Standard
+- Multicolor example: "Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Clemence Palladium"
+- Exotic example: "Hermès Kelly 28 Sellier Porosus Crocodile Noir Palladium"
+- Limited example: "Chanel Classic Flap So Black 25 Lambskin Black Hardware"
+- Standard example: "Louis Vuitton Neverfull MM Monogram Canvas Gold"
+
+Return ONLY this JSON shape, no explanation, no markdown:
 {"matches":[
-  {"rank":1,"brand":"Hermès","model":"Birkin So Black","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedConstruction":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
-      "Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","special_variant":"So Black(Limited Edition)","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
-  {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","imageSearchQuery":"..."},
-  {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","imageSearchQuery":"..."}
-
+  {
+    "rank":1,
+    "brand":"Hermès",
+    "model":"Birkin",
+    "confidence":93,
+    "confidenceLabel":"High",
+    "estimatedValueEUR":95000,
+    "detectedConstruction":"Retourne",
+    "detectedColors":["Orange H","Sanguine","Bleu Hydra","Gold","Etain","Bleu Lin"],
+    "detectedLeather":"Clemence",
+    "detectedHardware":"Palladium",
+    "detectedSize":"35",
+    "colorAccuracy":88,
+    "alternativeColors":[],
+    "detectedYear":"2012",
+    "stampLetter":"N",
+    "editionName":"Arlequin",
+    "special_variant":"Arlequin Limited Edition",
+    "isSpecialOrder":true,
+    "isExotic":false,
+    "isLimitedEdition":true,
+    "isBiColor":false,
+    "isTriColor":false,
+    "isMultiColor":true,
+    "isHSS":false,
+    "condition":"Excellent",
+    "imageSearchQuery":"Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Gold Etain Bleu Lin Clemence Palladium"
+  },
+  {"rank":2,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":60,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
+  {"rank":3,"brand":"...","model":"...","confidence":50,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":50,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
+  {"rank":4,"brand":"...","model":"...","confidence":30,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":40,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."}
 ]}
-IMPORTANT: Always return exactly 4 matches.
-- Rank 1: most likely identification with highest confidence
-- Rank 2: second most likely alternative (same model and different construction)
-- Rank 3: third alternative (could be different brand if uncertain)
-- Rank 4: fourth alternative (least likely but plausible)
-Each match must have genuinely different brand/model combinations. Never repeat the same brand+model twice.'''
+
+IMPORTANT:
+- Always return exactly 4 matches
+- Rank 1: highest confidence identification
+- Rank 2: same model, different construction or color interpretation
+- Rank 3: different model or brand if uncertain
+- Rank 4: least likely but plausible alternative
+- Never repeat same brand+model twice
+- Never leave imageSearchQuery empty'''
 
 
 async def upload_image(photo_b64: str, photo_mime: str) -> str:
