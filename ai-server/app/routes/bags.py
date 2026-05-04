@@ -1,7 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional
 import uuid
-from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException, File, UploadFile, Request
 import base64
 import asyncio
 from bson import ObjectId
@@ -11,25 +9,35 @@ from app.services.serp_service import fetch_bag_image
 from app.services.price_service import get_full_valuation   # ← single entry point
 from app.database import usercollections, db
 
+from pydantic import BaseModel, field_validator
+from typing import List, Optional
+
 router = APIRouter()
 
 
 class ConfirmBagRequest(BaseModel):
     brand: str
     model: str
-    color: str
+    color: List[str] = []
     condition: str
     leather: str = ""
     hardware: str = ""
     size: str = ""
     construction: str = ""
     special_variant: str = "Standard"
-    purchase_price: Optional[float] = None   # ← add this
+    purchase_price: Optional[float] = None
+    image_search_query: Optional[str] = None
 
-
+    @field_validator('color', mode='before')
+    @classmethod
+    def coerce_color(cls, v):
+        if isinstance(v, str):
+            return [v]
+        return v
 # ─────────────────────────────────────────
 # IDENTIFY FROM PHOTO
 # ─────────────────────────────────────────
+
 
 @router.post("/identify/upload")
 async def identify_upload(
@@ -51,8 +59,10 @@ async def identify_upload(
 
     # 3. Fetch image for each match in parallel
     async def enrich_match(match):
+        colors = match.get("detectedColors", [])
+        color_str = " ".join(colors) if isinstance(colors, list) else colors
         query = match.get("imageSearchQuery") or \
-            f"{match.get('brand')} {match.get('model')} {match.get('detectedColor')}"
+            f"{match.get('brand')} {match.get('model')} {color_str}"
         image_data = await fetch_bag_image(query)
         return {
             **match,
@@ -93,6 +103,7 @@ async def get_price(req: ConfirmBagRequest):
         construction=req.construction,
         special_variant=req.special_variant,
         purchase_price=req.purchase_price,   # ← add this
+        image_search_query=req.image_search_query   # ← add this
     )
 
     return {
@@ -115,3 +126,9 @@ async def health():
         "message": "Server Is Running",
         "traceId": str(uuid.uuid4())
     }
+
+
+@router.post("/bags/price/debug")
+async def debug_price(request: Request):
+    body = await request.json()
+    return {"received": body, "color_type": str(type(body.get("color")))}

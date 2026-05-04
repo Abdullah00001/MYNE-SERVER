@@ -1,9 +1,10 @@
-
+from collections import Counter
 import re
 import httpx
 import asyncio
 from app.config import SERPER_API_KEY
 from app.services.brand_config import get_official_site
+
 
 SERPER_HEADERS = {
     "X-API-KEY": SERPER_API_KEY,
@@ -17,16 +18,15 @@ SERPER_HEADERS = {
 
 
 def extract_price(text: str) -> float | None:
-    """Extract first clean number from a price string like '$9,200' or '€ 8.500'."""
+    """Only extract a number if it's directly attached to a currency symbol."""
     if not text:
         return None
+    match = re.search(
+        r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text)
+    if not match:
+        return None
     try:
-        cleaned = text.replace(",", "").replace(".", "")
-        # Handle European formatting: 8.500 → 8500, but 8,500.00 → 850000 (wrong)
-        # Safer: just grab all digits with optional single decimal
-        match = re.search(r'[\d]+(?:[.,]\d{1,2})?', text.replace(",", ""))
-        if match:
-            return float(match.group().replace(",", "."))
+        return float(match.group(1).replace(",", ""))
     except Exception:
         return None
 
@@ -52,6 +52,13 @@ _rate_cache = {
     "rates": {"USD": 0.92, "GBP": 1.17, "JPY": 0.0062, "CNY": 0.13},
     "last_updated": None
 }
+
+
+def format_colors(color) -> str:
+    """Handle both string and list color inputs."""
+    if isinstance(color, list):
+        return " ".join(color)
+    return color or ""
 
 
 async def refresh_rates():
@@ -102,46 +109,35 @@ def to_eur(price: float, symbol: str) -> float:
 
 
 def parse_prices_from_results(results: list, min_price: float = 500) -> list[dict]:
-    """
-    Extract and convert prices from Serper organic/shopping results.
-    Returns a list of dicts with price, source, original currency.
-    """
     prices = []
     for item in results:
         raw = item.get("price", "")
         source = item.get("link", "") or item.get("source", "")
 
-        # Extract domain from URL
         domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', source)
         domain = domain.group(1) if domain else "unknown"
 
-        # Organic results → scan title + snippet
         if not raw:
+            # Organic result — scan title + snippet for currency-attached prices only
             text = f"{item.get('title', '')} {item.get('snippet', '')}"
-            matches = re.findall(r'([\$£€¥])\s*([\d,]+\.?\d*)', text)
-            for symbol, amount in matches:
-                price = extract_price(amount)
-                if price and price > min_price:
+            match = re.search(
+                r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text)
+            if match:
+                symbol = match.group(1)
+                price = float(match.group(2).replace(",", ""))
+                if price > min_price:
                     eur = to_eur(price, symbol)
-                    prices.append({
-                        "eur": eur,
-                        "original": price,
-                        "currency": symbol,
-                        "source": domain
-                    })
-                    break
+                    prices.append({"eur": eur, "original": price,
+                                  "currency": symbol, "source": domain})
             continue
 
+        # Shopping result — price field is clean
         price = extract_price(raw)
         if price and price > min_price:
             symbol = detect_currency_symbol(raw)
             eur = to_eur(price, symbol)
-            prices.append({
-                "eur": eur,
-                "original": price,
-                "currency": symbol,
-                "source": domain
-            })
+            prices.append({"eur": eur, "original": price,
+                          "currency": symbol, "source": domain})
 
     return prices
 
@@ -168,32 +164,11 @@ def remove_outliers(prices: list[dict]) -> list[dict]:
     return filtered if filtered else prices
 
 
-# def weighted_median(retail: list, reseller: list, ebay: list) -> float:
-#     """
-#     Combine prices from 3 sources using weighted sampling.
-#     Weights: eBay listed 50%, Resellers 35%, Retail 15%
-#     Returns the median of the combined weighted pool.
-#     """
-#     pool = []
-#     pool += reseller * 35  # reseller weight
-#     pool += ebay * 50      # ebay listed weight
-#     pool += retail * 15    # retail/new weight
-
-#     if not pool:
-#         return 0.0
-
-#     pool.sort()
-#     mid = len(pool) // 2
-#     if len(pool) % 2 == 0:
-#         return (pool[mid - 1] + pool[mid]) / 2
-#     return pool[mid]
-
-
 # ─────────────────────────────────────────
 # FETCHERS
 # ─────────────────────────────────────────
 
-async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str) -> list[float]:
+async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
     """
     Fetch retail prices from official brand websites.
     Skips brands with no public pricing (Hermès, Goyard).
@@ -205,46 +180,78 @@ async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, c
         return []
 
     # Search Google restricted to official site only
-    query = f"{brand} {model} {size} {leather} {color} site:{official_site}"
+    # query = f"{brand} {model} {size} {leather} {format_colors(color)} buy"
+     # Step 1 — find the product page URL via Google
+# CORRECT — string in both branches
+    query = f"{image_search_query} site:{official_site}" if image_search_query else f"{brand} {model} {size} {leather} {format_colors(color)} buy site:{official_site}"
 
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             res = await client.post(
-                "https://google.serper.dev/shopping",
+                "https://google.serper.dev/search",
                 headers=SERPER_HEADERS,
-                json={"q": query, "num": 10}
+                json={"q": query, "num": 5}
             )
-            res.raise_for_status()
             data = res.json()
 
-        prices = parse_prices_from_results(
-            data.get("shopping", []), min_price=500)
+        # Step 2 — grab first matching product URL
+        product_url = None
+        for result in data.get("organic", []):
+            link = result.get("link", "")
+            if official_site in link:
+                product_url = link
+                break
 
-        print(
-            f"[fetch_retail_prices] {brand} → {official_site} → found {len(prices)} prices: {prices}")
-        return remove_outliers(prices)
+        if not product_url:
+            print(f"[fetch_retail_prices] No product page found for {brand}")
+            return []
 
+        # Step 3 — scrape the actual page for price
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }) as client:
+            page = await client.get(product_url)
+            html = page.text
+
+        # Step 4 — extract price from HTML
+        matches = re.findall(
+            r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', html)
+        if matches:
+            prices_found = []
+            for symbol, amount in matches:
+                try:
+                    price = float(amount.replace(",", ""))
+                    if price > 500:
+                        prices_found.append((symbol, price))
+                except:
+                    continue
+
+            if prices_found:
+                symbol, price = Counter(prices_found).most_common(1)[0][0]
+                eur = to_eur(price, symbol)
+                print(
+                    f"[fetch_retail_prices] Scraped {price}{symbol} from {product_url}")
+                return [{"eur": eur, "original": price, "currency": symbol, "source": official_site}]
+
+        print(f"[fetch_retail_prices] No price found in page HTML")
+        return []
     except Exception as e:
-        print(f"[fetch_retail_prices] failed: {e}")
+        print(f"[fetch_retail_prices] Failed to fetch retail price: {e}")
         return []
 
 
-async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str) -> list[float]:
+async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
     """
     Fetch resale prices from luxury resale platforms.
     Used for ALL brands including Hermès and Goyard.
     """
-    base = f"{brand} {model} {size} {leather} {color}"
-    if construction:
-        base += f" {construction}"
-    if special_variant and special_variant != "Standard":
-        base += f" {special_variant}"
+    base = image_search_query if image_search_query else f"{brand} {model} {size} {format_colors(color)} {leather}"
 
-        # Split into 3 queries to cover all sites without truncation
+    # Split into 3 queries to cover all sites without truncation
     query_1 = f"{base} site:vestiaire.com OR site:therealreal.com OR site:1stdibs.com"
     query_2 = f"{base} site:rebag.com OR site:fashionphile.com OR site:madisonavenuecouture.com"
-    query_3 = f"{base} site:sothebys.com OR site:saclab.com OR site:ginzaxiaoma.com OR site:labellov.com"
-    query_4 = f"{base} site:baghunter.com OR site:collector-square.com OR site:privéporter.com OR site:xupes.com"
+    query_3 = f"{base} site:sothebys.com OR site:saclab.com OR site:ginzaxiaoma.com"
+    query_4 = f"{base} site:baghunter.com OR site:collector-square.com OR site:privéporter.com"
 
     async def search(q: str) -> list:
         try:
@@ -272,12 +279,13 @@ async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str,
     return remove_outliers(prices)
 
 
-async def fetch_ebay_listings(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str) -> list[float]:
+async def fetch_ebay_listings(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
     """
     Fetch eBay active listings via Serper Google Shopping.
     We label these separately from resellers because they include non-authenticated sellers.
     """
-    query = f"{brand} {model} {size} {leather} {color} {condition} {construction}  site:ebay.com"
+    base = image_search_query if image_search_query else f"{brand} {model} {size} {leather} {format_colors(color)}"
+    query = f"{base} site:ebay.com"
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             res = await client.post(
@@ -309,17 +317,18 @@ async def fetch_all_market_prices(
     color: str,
     condition: str,
     construction: str,
-    special_variant: str
+    special_variant: str,
+    image_search_query: str = "",
 ) -> dict:
     await refresh_rates()
 
     retail, reseller, ebay = await asyncio.gather(
         fetch_retail_prices(brand, model, size, leather,
-                            color, condition, construction, special_variant),
+                            color, condition, construction, special_variant, image_search_query),
         fetch_reseller_prices(brand, model, size, leather,
-                              color, condition, construction, special_variant),
+                              color, condition, construction, special_variant, image_search_query),
         fetch_ebay_listings(brand, model, size, leather,
-                            color, condition, construction, special_variant),
+                            color, condition, construction, special_variant, image_search_query),
     )
 
     # Compute retail median

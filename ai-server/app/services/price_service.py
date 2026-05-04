@@ -4,27 +4,7 @@ from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
 from datetime import datetime
 from app.services.brand_config import is_investment_piece, is_depreciating
-
-
-# ─────────────────────────────────────────
-# INVESTMENT BRAND CONFIG
-# ─────────────────────────────────────────
-
-# These brands/models appreciate in value — resale > retail
-# Do NOT apply condition multipliers to these
-INVESTMENT_BRANDS = {
-    "hermès": {"birkin", "kelly", "constance", "lindy", "picotin"},
-    "chanel": {"classic flap", "2.55", "boy bag"},
-    "goyard": {"saint louis", "artois"},
-}
-
-# Brands where resale is always BELOW retail — apply full multipliers
-DEPRECIATING_BRANDS = {
-    "louis vuitton", "gucci", "prada", "dior",
-    "bottega veneta", "balenciaga", "givenchy",
-    "saint laurent", "celine", "fendi", "loewe",
-    "valentino", "miu miu", "burberry"
-}
+from typing import List
 
 # ─────────────────────────────────────────
 # CONDITION MULTIPLIERS
@@ -39,12 +19,20 @@ CONDITION_MULTIPLIER = {
     "Poor":      0.45,
 }
 
-SPECIAL_MULTIPLIER = {
-    "HSS":      1.80,   # Two-tone special order
-    "Bicolor":  1.15,   # Two color panels
-    "Cargo":    1.25,   # Exterior pocket design
-    "Standard": 1.00,
-}
+
+def get_special_factor(special_variant: str) -> float:
+    """Smart lookup — works even with free text special_variant."""
+    if not special_variant:
+        return 1.0
+    v = special_variant.lower()
+    if "hss" in v:
+        return 1.80
+    if "bicolor" in v or "bi-color" in v or "two tone" in v:
+        return 1.15
+    if "cargo" in v:
+        return 1.25
+    return 1.00
+
 
 today = datetime.today().strftime("%B %Y")  # e.g. "April 2026"
 
@@ -82,13 +70,14 @@ async def call_gpt(prompt: str, max_tokens: int = 800) -> dict:
 async def get_current_price(
     brand: str,
     model: str,
-    color: str,
+    color: List[str],
     leather: str,
     hardware: str,
     construction: str,
     size: str,
     condition: str,
-    special_variant: str = "Standard",
+    special_variant: str = "",
+    image_search_query: str = "",   # ← add this
 ) -> dict:
     """
     Step 1: Fetch real market data from all sources.
@@ -98,7 +87,7 @@ async def get_current_price(
     """
 
     # ── Step 1: Real market data ──────────────────────────
-    market = await fetch_all_market_prices(brand, model, size, leather, color, condition, construction, special_variant)
+    market = await fetch_all_market_prices(brand, model, size, leather, color, condition, construction, special_variant, image_search_query)
 
     base_price = market["resale_price"] or 0
     data_points = market["data_points"]
@@ -127,10 +116,10 @@ async def get_current_price(
     is_depreciating_brand = is_depreciating(brand)
 
     condition_factor = CONDITION_MULTIPLIER.get(condition.capitalize(), 1.0)
-    special_factor = SPECIAL_MULTIPLIER.get(special_variant, 1.0)
+    special_factor = get_special_factor(special_variant)
 
     # Only apply special multiplier for Hermes HSS
-    if special_variant == "HSS" and brand.lower() not in ["hermès", "hermes"]:
+    if "hss" in special_variant.lower() and brand.lower() not in ["hermès", "hermes"]:
         special_factor = 1.0
 
     if is_investment:
@@ -153,12 +142,13 @@ async def get_current_price(
 
     # ── Step 3: GPT fallback / refinement ────────────────
     if needs_gpt or adjusted_price == 0:
+
         prompt = f"""
 You are a luxury handbag pricing expert. Estimate the current resale market price in EUR for:
 
 Brand: {brand}
 Model: {model}
-Color: {color}
+Color: {", ".join(color) if isinstance(color, list) else color}
 Leather: {leather}
 Hardware: {hardware}
 Size: {size}
@@ -185,27 +175,47 @@ Return ONLY a JSON object with these fields:
         return result
 
     # ── Real data was sufficient — return directly ────────
+    retail_price = market["retail_price"]
+
+    # Blend retail + resale when data is sparse
+    if data_points >= 6:
+        current_value = adjusted_price
+    elif data_points >= 3:
+        if retail_price:
+            current_value = round((retail_price + adjusted_price) / 2, 2)
+        else:
+            current_value = adjusted_price
+    else:
+        current_value = retail_price or adjusted_price
+
+    # Resale premium
+    if retail_price and adjusted_price:
+        resale_premium = round(
+            ((adjusted_price - retail_price) / retail_price) * 100, 2)
+    else:
+        resale_premium = None
+
     return {
-        "current_value": adjusted_price,
+        "current_value": current_value,
         "currency": "EUR",
-        "confidence": "high" if data_points >= 6 else "medium",
+        "confidence": "high" if data_points >= 6 else "medium" if data_points >= 3 else "low",
         "change_percentage": 0.0,
-        "price_range": {"min": round(adjusted_price * 0.9, 2), "max": round(adjusted_price * 1.1, 2)},
-        "retail_price": market["retail_price"],
-        "resale_premium": None,
+        "price_range": {"min": round(current_value * 0.9, 2), "max": round(current_value * 1.1, 2)},
+        "retail_price": retail_price,
+        "resale_premium": resale_premium,
         "sources_used": sources_used,
         "data_points": data_points,
     }
-
 
 # ─────────────────────────────────────────
 # PRICE HISTORY (last 10 months)
 # ─────────────────────────────────────────
 
+
 async def get_price_history(
     brand: str,
     model: str,
-    color: str,
+    color: List[str],
     leather: str,
     size: str,
     current_price: float,
@@ -228,7 +238,7 @@ async def get_price_history(
 
     Brand: {brand}
     Model: {model}
-    Color: {color}
+    Color: {", ".join(color) if isinstance(color, list) else color}
     Leather: {leather}
     Size: {size}
     Current Price (today): {current_price} EUR
@@ -261,14 +271,15 @@ async def get_price_history(
 async def get_full_valuation(
     brand: str,
     model: str,
-    color: str,
+    color: List[str],
     leather: str,
     hardware: str,
     size: str,
     condition: str,
     construction: str,
-    special_variant: str = "Standard",
-    purchase_price: float = None,   # ← add this
+    special_variant: str = "",
+    purchase_price: float = None,
+    image_search_query: str = "",   # ← add this
 ) -> dict:
     """
     Full valuation: current price + 10-month history.
@@ -300,6 +311,7 @@ async def get_full_valuation(
         condition=condition,
         construction=construction,
         special_variant=special_variant,
+        image_search_query=image_search_query
     )
 
     current_price = current_result.get("current_value", 0)
