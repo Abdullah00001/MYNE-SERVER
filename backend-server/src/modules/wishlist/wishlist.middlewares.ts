@@ -19,7 +19,9 @@ export class WishlistMiddleware extends BaseMiddleware {
     next: NextFunction
   ): Promise<void> {
     const { id } = req.params;
-    const wish = await Wishlist.findById(id);
+    const wish = await Wishlist.findById(id)
+      .populate('brandId')
+      .populate('modelId');
     if (!wish) {
       res.status(404).json({
         success: false,

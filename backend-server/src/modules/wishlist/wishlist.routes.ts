@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { container } from 'tsyringe';
 
-import { handleMulterError, uploadSingle } from '@/middlewares/multer.middleware';
 import { validateReqBody } from '@/middlewares/validateReqBody.middleware';
 import { AuthMiddleware } from '@/modules/auth/auth.middlewares';
 import { WishlistController } from '@/modules/wishlist/wishlist.controllers';
 import { WishlistMiddleware } from '@/modules/wishlist/wishlist.middlewares';
-import { CreateWishSchema } from '@/modules/wishlist/wishlist.schemas';
+import {
+  CreateWishSchema,
+  UpdateWishSchema,
+} from '@/modules/wishlist/wishlist.schemas';
 
 const router = Router();
 
@@ -18,23 +20,34 @@ router
   .route('/wishlists')
   .post(
     authMiddleware.checkAccessToken,
-    uploadSingle('wishListImage'),
-    handleMulterError,
+    authMiddleware.checkUserAccountStatus,
     validateReqBody(CreateWishSchema),
     controller.createWish
   )
-  .get(authMiddleware.checkAccessToken, controller.getWishes);
+  .get(
+    authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
+    controller.getWishes
+  );
 
 router
   .route('/wishlists/:id')
-  .patch(
+  .get(
     authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
     middleware.findWishById,
-    controller.changeWishStatus,
+    controller.getOneWish
+  )
+  .put(
+    authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
+    middleware.findWishById,
+    validateReqBody(UpdateWishSchema),
     controller.changeWishStatus
   )
   .delete(
     authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
     middleware.findWishById,
     controller.deleteWish
   );

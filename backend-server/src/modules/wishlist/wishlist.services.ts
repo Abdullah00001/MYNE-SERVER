@@ -1,9 +1,6 @@
-import { extname, join } from 'path';
-
 import { JwtPayload } from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { injectable } from 'tsyringe';
-import { v4 as uuidv4 } from 'uuid';
 
 import { CreateWishDTO } from '@/modules/wishlist/wishlist.dto';
 import Wishlist from '@/modules/wishlist/wishlist.model';
@@ -15,6 +12,10 @@ import {
 } from '@/modules/wishlist/wishlist.types';
 import { S3Utils } from '@/utils/s3.utils';
 import { SystemUtils } from '@/utils/system.utils';
+import {
+  TCreateWishPayload,
+  TUpdateWishPayload,
+} from '@/modules/wishlist/wishlist.schemas';
 
 @injectable()
 export class WishlistService {
@@ -25,35 +26,28 @@ export class WishlistService {
 
   async createWish({
     user,
-    brandId,
-    modelId,
-    priority,
-    color,
-    material,
-    note,
-    priceDescription,
-    image,
+    payload,
   }: {
     user: JwtPayload;
-    brandId: string;
-    modelId: string;
-    priority: string;
-    color: string;
-    material: string;
-    note?: string;
-    priceDescription: IPriceDescription;
-    image: string;
-  }): Promise<CreateWishDTO> {
-    const filePath = join(__dirname, '../../../public/temp', image);
-    const fileExtension = extname(filePath);
-    const s3Key = `wishlist/${uuidv4()}/${Date.now()}${fileExtension}`;
-    const fileInfo = {
-      filePath,
-      key: s3Key,
-      mimeType: fileExtension,
-    };
+    payload: TCreateWishPayload;
+  }): Promise<unknown> {
+    const {
+      brandId,
+      color,
+      condition,
+      currency,
+      hardwareColor,
+      material,
+      modelId,
+      priority,
+      size,
+      specialVariant,
+      targetPrice,
+      variant,
+      note,
+      image,
+    } = payload;
     try {
-      const url = await this.s3Utils.singleUpload(fileInfo);
       const newWish = new Wishlist({
         userId: new Types.ObjectId(user.sub as string),
         brandId: new Types.ObjectId(brandId),
@@ -62,17 +56,22 @@ export class WishlistService {
         color,
         material,
         note,
-        priceDescription,
-        image: url,
+        size,
+        specialVariant,
+        targetPrice,
+        variant,
+        image,
+        condition,
+        currency,
+        hardwareColor,
       });
       await newWish.save();
       await newWish.populate([
         { path: 'brandId', select: '_id brandName brandLogo' },
         { path: 'modelId', select: '_id modelName modelImage brandId' },
       ]);
-      return CreateWishDTO.fromEntity(newWish);
+      return newWish;
     } catch (error) {
-      await this.s3Utils.singleDelete({ key: fileInfo.key });
       if (error instanceof Error) throw error;
       throw new Error('An unexpected error occurred on create wish service');
     }
@@ -136,33 +135,39 @@ export class WishlistService {
               },
               { $unwind: '$modelData' },
               {
-                $addFields: {
-                  brandId: {
+                $project: {
+                  // Summary fields per item
+                  brand: {
                     _id: '$brandData._id',
                     brandName: '$brandData.brandName',
                     brandLogo: '$brandData.brandLogo',
                   },
-                  modelId: {
+                  model: {
                     _id: '$modelData._id',
                     modelName: '$modelData.modelName',
                     modelImage: '$modelData.modelImage',
-                    brandId: '$modelData.brandId',
                   },
-                },
-              },
-              {
-                $project: {
-                  brandData: 0,
-                  modelData: 0,
+                  color: 1,
+                  priority: 1,
+                  status: 1,
+                  targetPrice: 1,
+                  currency: 1,
+                  image: 1,
+                  createdAt: 1,
+                  updatedAt: 1,
                 },
               },
             ],
+
+            // Total count of matched documents
             totalCount: [{ $count: 'count' }],
+
+            // Sum of targetPrice across ALL matched documents (not just current page)
             totalTargetPrice: [
               {
                 $group: {
                   _id: null,
-                  total: { $sum: '$priceDescription.targetPrice' },
+                  total: { $sum: '$targetPrice' }, // ✅ fixed field path
                 },
               },
             ],
@@ -252,17 +257,20 @@ export class WishlistService {
 
   async changeWishStatus({
     wish,
-    status,
+    payload,
   }: {
     wish: IWishlist;
-    status: string;
+    payload: TUpdateWishPayload;
   }): Promise<CreateWishDTO> {
     try {
+      const { currency, image, note, priority, status, targetPrice } = payload;
       const updatedWish = await Wishlist.findOneAndUpdate(
         { _id: wish._id },
-        { status },
+        { image, note, priority, status, targetPrice, currency },
         { new: true }
       );
+      const key = this.systemUtils.extractS3KeyFromUrl(wish.image);
+      await this.s3Utils.singleDelete({ key });
       if (!updatedWish) {
         throw new Error('Something went wrong while updating wish status');
       }

@@ -4,6 +4,7 @@ import { injectable } from 'tsyringe';
 
 import { BaseController } from '@/core/base_classes/base.controller';
 import { WishlistService } from '@/modules/wishlist/wishlist.services';
+import { TUpdateWishPayload } from '@/modules/wishlist/wishlist.schemas';
 
 @injectable()
 export class WishlistController extends BaseController {
@@ -11,38 +12,22 @@ export class WishlistController extends BaseController {
   public deleteWish: RequestHandler;
   public getWishes: RequestHandler;
   public changeWishStatus: RequestHandler;
-
+  public getOneWish: RequestHandler;
   constructor(private readonly wishlistService: WishlistService) {
     super();
     this.createWish = this.wrap(this._createWish);
     this.deleteWish = this.wrap(this._deleteWish);
     this.getWishes = this.wrap(this._getWishes);
     this.changeWishStatus = this.wrap(this._changeWishStatus);
+    this.getOneWish = this.wrap(this._getOneWish);
   }
 
   private async _createWish(req: Request, res: Response): Promise<void> {
     const user = req.user as JwtPayload;
-    const {
-      brandId,
-      modelId,
-      priority,
-      color,
-      material,
-      note,
-      currency,
-      targetPrice,
-    } = req.body;
-    const image = req.file as Express.Multer.File;
+    const payload = req.body;
     const data = await this.wishlistService.createWish({
       user,
-      brandId,
-      modelId,
-      priority,
-      color,
-      material,
-      note,
-      priceDescription: { currency, targetPrice },
-      image: image.filename,
+      payload,
     });
 
     res.status(201).json({
@@ -85,12 +70,23 @@ export class WishlistController extends BaseController {
 
   private async _changeWishStatus(req: Request, res: Response): Promise<void> {
     const wish = req.wish;
-    const { status } = req.body as { status: string };
-    const data = await this.wishlistService.changeWishStatus({ wish, status });
+    const payload = req.body as TUpdateWishPayload;
+    const data = await this.wishlistService.changeWishStatus({ wish, payload });
     res.status(200).json({
       success: true,
       message: 'Wish status updated successfully',
       data,
     });
+  }
+
+  private async _getOneWish(req: Request, res: Response): Promise<void> {
+    const wish = req.wish;
+    res.status(200).json({
+      status: 200,
+      success: true,
+      message: 'Wish status updated successfully',
+      data: wish,
+    });
+    return;
   }
 }

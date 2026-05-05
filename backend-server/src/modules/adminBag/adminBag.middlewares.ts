@@ -19,7 +19,10 @@ export class AdminBagMiddleware extends BaseMiddleware {
     next: NextFunction
   ): Promise<void> {
     const { id } = req.params;
-    const bag = await UserCollection.findById(id);
+    const bag = await UserCollection.findById(id)
+      .populate('brandId')
+      .populate('modelId')
+      .lean();
     if (!bag) {
       res.status(404).json({
         success: false,
