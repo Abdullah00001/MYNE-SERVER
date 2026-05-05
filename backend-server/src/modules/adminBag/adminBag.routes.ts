@@ -42,6 +42,11 @@ router
     validateReqBody(UpdateAdminBagSchema),
     controller.updateAdminBag
   )
+  .get(
+    authMiddleware.checkAdminAccessToken,
+    middleware.findAdminBagById,
+    controller.getOneAdminBag
+  )
   .delete(
     authMiddleware.checkAdminAccessToken,
     middleware.findAdminBagById,
@@ -55,6 +60,15 @@ router
     authMiddleware.checkAccessToken,
     authMiddleware.checkUserAccountStatus,
     controller.getAdminBags
+  );
+
+router
+  .route('/discover/:id')
+  .get(
+    authMiddleware.checkAccessToken,
+    authMiddleware.checkUserAccountStatus,
+    middleware.findAdminBagById,
+    controller._getOneAdminBag
   );
 
 export default router;

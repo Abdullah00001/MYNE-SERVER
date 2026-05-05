@@ -16,6 +16,7 @@ export class AdminBagController extends BaseController {
   public getAdminBags: RequestHandler;
   public deleteAdminBag: RequestHandler;
   public updateAdminBag: RequestHandler;
+  public getOneAdminBag: RequestHandler;
 
   constructor(private readonly adminBagService: AdminBagService) {
     super();
@@ -23,6 +24,7 @@ export class AdminBagController extends BaseController {
     this.getAdminBags = this.wrap(this._getAdminBags);
     this.deleteAdminBag = this.wrap(this._deleteAdminBag);
     this.updateAdminBag = this.wrap(this._updateAdminBag);
+    this.getOneAdminBag = this.wrap(this._getOneAdminBag);
   }
 
   private async _createAdminBag(req: Request, res: Response): Promise<void> {
@@ -83,6 +85,17 @@ export class AdminBagController extends BaseController {
       status: 200,
       message: 'Admin Bag Updated Successfully',
       data,
+    });
+    return;
+  }
+
+  public async _getOneAdminBag(req: Request, res: Response): Promise<void> {
+    const bag = req.adminBag;
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'One Admin Bags Retrieve Successful',
+      data: bag,
     });
     return;
   }
