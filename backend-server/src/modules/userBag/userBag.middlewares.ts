@@ -19,8 +19,9 @@ export class UserBagMiddleware extends BaseMiddleware {
     next: NextFunction
   ): Promise<void> {
     const { id } = req.params;
-    const collection =
-      await UserCollection.findById(id).lean().populate('brandId modelId');
+    const collection = await UserCollection.findById(id)
+      .lean()
+      .populate('brandId modelId');
     if (!collection) {
       res.status(404).json({
         success: false,

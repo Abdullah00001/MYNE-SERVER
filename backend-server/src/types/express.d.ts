@@ -24,10 +24,10 @@ declare global {
       getUser: IUser;
       model: IModel;
       wish: IWishlist;
-      adminBag: IAdminBags;
+      adminBag: IUserBag;
       userBagCollection: IUserBag;
       validatedQuery?: unknown;
-      isTempPasswordMatched:boolean
+      isTempPasswordMatched: boolean;
     }
   }
 }

@@ -8,14 +8,20 @@ const objectIdSchema = z.string().refine((val) => isValidObjectId(val), {
 
 // Create schema
 export const CreateAdminBagSchema = z.object({
-  bagBrand: objectIdSchema,
-  bagModel: objectIdSchema,
+  brandId: objectIdSchema,
+  modelId: objectIdSchema,
   bagColor: z
-    .string({
-      error: 'Bag color is required',
-    })
+    .array(
+      z
+        .string({
+          error: 'Each color must be a string',
+        })
+        .min(1, {
+          message: 'Color name cannot be empty',
+        })
+    )
     .min(1, {
-      error: 'Bag color cannot be empty',
+      message: 'Bag color is required and needs at least one selection',
     }),
   variant: z
     .string({
@@ -54,6 +60,7 @@ export const CreateAdminBagSchema = z.object({
     .min(1, {
       error: 'Condition cannot be empty',
     }),
+  specialVariant:z.string().nullable(),
 });
 
 export type TCreateAdminBagPayload = z.infer<typeof CreateAdminBagSchema>;

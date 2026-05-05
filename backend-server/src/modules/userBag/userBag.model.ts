@@ -88,7 +88,7 @@ const UserCollectionSchema = new Schema<IUserBag>(
     },
     primaryImage: { type: String, default: null },
     images: [{ type: String }],
-    bagColor: { type: String, required: true },
+    bagColor: [{ type: String, required: true }],
     material: { type: String, required: true },
     hardwareColor: { type: String, default: null },
     size: { type: String, required: true },
@@ -111,6 +111,9 @@ const UserCollectionSchema = new Schema<IUserBag>(
       enum: PublishStatus,
       default: PublishStatus.PENDING,
     },
+    imageSearchQuery: { type: String, default: null },
+    isAdmin:{type:Boolean,default:false},
+    specialVariant: { type: String, default: null },
     historicalValue: {
       type: Map,
       of: YearSchema,

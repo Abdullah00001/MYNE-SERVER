@@ -39,7 +39,7 @@ export interface IUserBag {
   _id: Types.ObjectId;
   primaryImage: string;
   images: string[];
-  bagColor: string;
+  bagColor: string[];
   material: string;
   hardwareColor: string;
   size: string;
@@ -59,6 +59,9 @@ export interface IUserBag {
   receipt?: string | null;
   isArchived: boolean;
   publishStatus: PublishStatus;
+  specialVariant:String;
+  imageSearchQuery:String;
+  isAdmin:boolean
   historicalValue?: Record<string, IYearValue> | Map<string, IYearValue>;
   __v?: number;
 }

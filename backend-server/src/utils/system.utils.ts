@@ -255,4 +255,28 @@ export class SystemUtils {
 
     return years.sort((a, b) => Number(b) - Number(a));
   }
+
+  buildImageSearchQuery({
+    bagColor,
+    brand,
+    condition,
+    hardwareColor,
+    material,
+    model,
+    size,
+    specialVariant,
+    variant,
+  }: {
+    brand: string;
+    model: string;
+    bagColor: string[];
+    variant: string;
+    material: string;
+    hardwareColor: string;
+    size: string;
+    condition: string;
+    specialVariant: string | null;
+  }): String {
+    return `${brand} ${model} ${size} ${bagColor} ${material} ${hardwareColor} ${variant} ${specialVariant} ${condition}`;
+  }
 }

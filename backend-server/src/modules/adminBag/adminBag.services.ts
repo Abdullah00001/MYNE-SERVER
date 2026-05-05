@@ -11,6 +11,7 @@ import AdminBag from '@/modules/adminBag/adminBag.model';
 import {
   IAdminBags,
   TActions,
+  TAdminBagPriceStatus,
   TGetAdminBagsResponse,
 } from '@/modules/adminBag/adminBag.types';
 import { IUser } from '@/modules/auth/auth.types';
@@ -23,6 +24,15 @@ import {
 } from '@/modules/adminBag/adminBag.schemas';
 import { env } from '@/env';
 import { Currency } from '@/modules/adminBag/adminBag.types';
+import UserCollection from '@/modules/userBag/userBag.model';
+import {
+  IUserBag,
+  IYearValue,
+  PublishStatus,
+} from '@/modules/userBag/userBag.types';
+import Brand from '@/modules/brand/brand.model';
+import ModelModel from '@/modules/model/model.model';
+import { monthNameMap } from '@/const';
 
 @injectable()
 export class AdminBagService {
@@ -39,64 +49,120 @@ export class AdminBagService {
     payload: TCreateAdminBagPayload;
     file: string;
     user: JwtPayload;
-  }): Promise<CreateAdminBagDTO> {
+  }): Promise<unknown> {
     const {
-      bagBrand,
+      brandId,
       bagColor,
-      bagModel,
+      modelId,
       material,
       hardwareColor,
       size,
       condition,
-      variant
+      variant,
+      specialVariant,
     } = payload;
+    const aiFields: {
+      priceStatus?: TAdminBagPriceStatus;
+      historicalValue?: Record<string, IYearValue>;
+    } = {};
     const filePath = join(__dirname, '../../../public/temp', file);
     const mimeType = extname(filePath);
     const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
     try {
+      const brand = await Brand.findOne({ _id: brandId });
+      if (!brand) throw new Error('Brand Not Found');
+      const model = await ModelModel.findOne({ _id: modelId });
+      if (!model) throw new Error('Model Not Found');
+      const imageSearchQuery = this.systemUtils.buildImageSearchQuery({
+        brand: brand?.brandName,
+        model: model?.modelName,
+        bagColor,
+        condition: condition,
+        material,
+        hardwareColor,
+        size: size,
+        variant,
+        specialVariant,
+      });
       const plainResponse = await axios.post(
         `${env.AI_SERVER_URL}/bags/price`,
         {
-          brand: bagBrand,
-          model: bagModel,
+          brand: brand?.brandName,
+          model: model?.modelName,
           color: bagColor,
-          condition: condition,
+          condition,
           leather: material,
           hardware: hardwareColor,
-          size: size,
-          variant
+          size,
+          construction: variant,
+          special_variant: specialVariant,
+          image_search_query: imageSearchQuery,
         }
       );
       const aiData = plainResponse.data?.data;
+      const priceHistory: { period: string; avg_price: number }[] =
+        aiData?.price_history?.history ?? [];
       const currency: Currency = aiData?.currency ?? null;
-      const priceStatus = {
+
+      /* ---------------------------- priceStatus build --------------------------- */
+
+      aiFields.priceStatus = {
         trend: aiData?.trend ?? null,
         changePercentage: aiData?.change_percentage ?? null,
         currentValue: aiData?.current_value ?? null,
         currency,
         fetchedAt: new Date().toISOString(),
       };
+
+      /* -------------------------- historicalValue build ------------------------- */
+
+      const historicalValue: Record<string, IYearValue> = {} as Record<
+        string,
+        IYearValue
+      >;
+
+      for (const entry of priceHistory) {
+        const [monthAbbr, year] = entry.period.split(' ');
+        const monthKey = monthNameMap[monthAbbr];
+
+        if (!monthKey || !year) continue;
+
+        if (!historicalValue[year]) {
+          historicalValue[year] = this.systemUtils.createEmptyYear();
+        }
+
+        historicalValue[year][monthKey] = {
+          currency,
+          avg_price: entry.avg_price,
+        };
+      }
+
+      aiFields.historicalValue = historicalValue;
       const url = await this.s3Utils.singleUpload({
         filePath,
         key,
         mimeType,
       });
-      const newAdminBag = new AdminBag({
+      const newAdminBag = new UserCollection({
         variant,
-        bagBrand,
-        bagModel,
+        brandId,
+        modelId,
         bagColor,
         material,
         hardwareColor,
         size,
         condition,
-        image: url,
+        primaryImage: url,
+        isAdmin: true,
+        publishStatus: PublishStatus.PUBLISHED,
+        specialVariant,
+        imageSearchQuery,
         // productionYear: priceData.productionYear,
-        priceStatus,
+        ...aiFields,
         user: new Types.ObjectId(user._id as string),
       });
       await newAdminBag.save();
-      return CreateAdminBagDTO.fromEntity(newAdminBag);
+      return newAdminBag;
     } catch (error) {
       await this.s3Utils.singleDelete({ key });
       if (error instanceof Error) throw error;
@@ -118,16 +184,22 @@ export class AdminBagService {
       const queryLimit = parseInt(limit || '10', 10);
       const isAdmin = user.role === Role.ADMIN;
       const skip = (queryPage - 1) * queryLimit;
-      const [result] = await AdminBag.aggregate([
+      const [result] = await UserCollection.aggregate([
+        // ── Filter admin bags only, using your existing isAdmin flag ──────────
+        { $match: { isAdmin: true } },
+
         {
           $facet: {
             data: [
+              { $sort: { createdAt: -1 } },
               { $skip: skip },
               { $limit: queryLimit },
+
+              // Join brand
               {
                 $lookup: {
                   from: 'brands',
-                  localField: 'bagBrand', // ⚠️ Changed from 'brandId' to 'bagBrand'
+                  localField: 'brandId', // ✅ your actual field name
                   foreignField: '_id',
                   as: 'brandData',
                 },
@@ -138,10 +210,12 @@ export class AdminBagService {
                   preserveNullAndEmptyArrays: true,
                 },
               },
+
+              // Join model
               {
                 $lookup: {
                   from: 'models',
-                  localField: 'bagModel', // ⚠️ Changed from 'modelId' to 'bagModel'
+                  localField: 'modelId', // ✅ your actual field name
                   foreignField: '_id',
                   as: 'modelData',
                 },
@@ -152,34 +226,40 @@ export class AdminBagService {
                   preserveNullAndEmptyArrays: true,
                 },
               },
+
+              // ── Only return the minimum fields needed ─────────────────────────
               {
-                $addFields: {
-                  bagBrand: {
-                    // ⚠️ Changed from 'brandId' to 'bagBrand'
+                $project: {
+                  primaryImage: 1,
+                  priceStatus: 1, // current value, currency, trend
+                  brand: {
                     _id: '$brandData._id',
                     brandName: '$brandData.brandName',
                     brandLogo: '$brandData.brandLogo',
                   },
-                  bagModel: {
-                    // ⚠️ Changed from 'modelId' to 'bagModel'
+                  model: {
                     _id: '$modelData._id',
                     modelName: '$modelData.modelName',
                     modelImage: '$modelData.modelImage',
-                    brandId: '$modelData.brandId',
                   },
                 },
               },
-              {
-                $project: {
-                  brandData: 0,
-                  modelData: 0,
-                },
-              },
             ],
+
             totalCount: [{ $count: 'count' }],
           },
         },
+
+        // Flatten totalCount from [{count: N}] → N
+        {
+          $addFields: {
+            totalCount: {
+              $ifNull: [{ $arrayElemAt: ['$totalCount.count', 0] }, 0],
+            },
+          },
+        },
       ]);
+
       const rawData = result.data || [];
       const total = result.totalCount[0]?.count || 0;
       const totalPages = Math.ceil(total / queryLimit);
@@ -256,9 +336,9 @@ export class AdminBagService {
     }
   }
 
-  async deleteAdminBag({ bag }: { bag: IAdminBags }): Promise<void> {
+  async deleteAdminBag({ bag }: { bag: IUserBag }): Promise<void> {
     try {
-      const key = this.systemUtils.extractS3KeyFromUrl(bag.image);
+      const key = this.systemUtils.extractS3KeyFromUrl(bag.primaryImage);
       await this.s3Utils.singleDelete({ key });
       await AdminBag.findByIdAndDelete(bag._id);
     } catch (error) {
@@ -272,15 +352,15 @@ export class AdminBagService {
     file,
     payload,
   }: {
-    bag: IAdminBags;
+    bag: IUserBag;
     payload: TUpdateAdminBagPayload;
     file?: string;
-  }): Promise<CreateAdminBagDTO> {
+  }): Promise<unknown> {
     const { bagColor, material, hardwareColor, size, condition } = payload;
-    let bagImage = bag.image;
+    let bagImage = bag.primaryImage;
     try {
       if (file) {
-        if (bagImage) { 
+        if (bagImage) {
           const oldKey = this.systemUtils.extractS3KeyFromUrl(bagImage);
           await this.s3Utils.singleDelete({ key: oldKey });
         }
@@ -307,7 +387,7 @@ export class AdminBagService {
         { new: true }
       );
       if (!data) throw new Error('Admin Bag Not Found For Update');
-      return CreateAdminBagDTO.fromEntity(data);
+      return data;
     } catch (error) {
       if (error instanceof Error) throw error;
       throw new Error('Unknown Error Occurred In Update Bag Service');

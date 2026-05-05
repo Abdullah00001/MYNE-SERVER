@@ -42,7 +42,7 @@ export type TActions = {
 };
 
 export type TGetAdminBagsResponse = {
-  data: IAdminBags[];
+  data: unknown;
   meta: {
     total: number;
     page: number;
