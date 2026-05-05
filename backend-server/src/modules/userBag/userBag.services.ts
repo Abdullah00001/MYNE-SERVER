@@ -125,12 +125,56 @@ export class UserBagService {
     payload: TCreateBagStepOne;
     id: string;
   }): Promise<IUserBag> {
+    const {
+      bagColor,
+      brandId,
+      condition,
+      hardwareColor,
+      imageSearchQuery,
+      material,
+      modelId,
+      size,
+      specialVariant,
+      variant,
+      wearChecklist,
+    } = payload;
+    const brand = await Brand.findOne({ _id: brandId });
+    if (!brand) throw new Error('Brand Not Found');
+    const model = await ModelModel.findOne({ _id: modelId });
+    if (!model) throw new Error('Model Not Found');
+    const payloadWithImage = {
+      bagColor,
+      brandId,
+      condition,
+      hardwareColor,
+      material,
+      modelId,
+      size,
+      specialVariant,
+      variant,
+      wearChecklist,
+      imageSearchQuery,
+    };
+    if (imageSearchQuery === null) {
+      payloadWithImage.imageSearchQuery =
+        this.systemUtils.buildImageSearchQuery({
+          brand: brand?.brandName as string,
+          model: model?.modelName as string,
+          bagColor,
+          condition,
+          hardwareColor,
+          material,
+          size,
+          specialVariant,
+          variant,
+        });
+    }
     try {
       const response = await UserCollection.findByIdAndUpdate(
         id,
         {
           $set: {
-            ...payload,
+            ...payloadWithImage,
           },
         },
         { new: true }
@@ -389,7 +433,10 @@ export class UserBagService {
             leather: collection.material,
             hardware: collection.hardwareColor,
             size: collection.size,
-            special_variant: collection.variant,
+            construction: collection.variant,
+            special_variant: collection.specialVariant,
+            image_search_query: collection.imageSearchQuery,
+            purchase_price:collection.purchasePrice
           }
         );
 
@@ -463,7 +510,7 @@ export class UserBagService {
     try {
       const { updatedData, deletedImages } =
         requestUpdateData as TPatchUserCollection;
-        console.log(updatedData);
+      console.log(updatedData);
       if (
         deletedImages &&
         deletedImages?.deletedImagesUrls &&
@@ -1250,6 +1297,10 @@ export class UserBagService {
           leather: collection.material,
           hardware: collection.hardwareColor,
           size: collection.size,
+          construction: collection.variant,
+          special_variant: collection.specialVariant,
+          image_search_query: collection.imageSearchQuery,
+          purchase_price:collection.purchasePrice
         }
       );
       const aiResponsePayload = plainResponse.data?.data;

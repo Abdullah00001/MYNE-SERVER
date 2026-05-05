@@ -59,8 +59,8 @@ export interface IUserBag {
   receipt?: string | null;
   isArchived: boolean;
   publishStatus: PublishStatus;
-  specialVariant:String;
-  imageSearchQuery:String;
+  specialVariant:string;
+  imageSearchQuery:string;
   isAdmin:boolean
   historicalValue?: Record<string, IYearValue> | Map<string, IYearValue>;
   __v?: number;

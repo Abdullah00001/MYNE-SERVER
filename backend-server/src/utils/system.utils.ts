@@ -276,7 +276,7 @@ export class SystemUtils {
     size: string;
     condition: string;
     specialVariant: string | null;
-  }): String {
+  }): string {
     return `${brand} ${model} ${size} ${bagColor} ${material} ${hardwareColor} ${variant} ${specialVariant} ${condition}`;
   }
 }

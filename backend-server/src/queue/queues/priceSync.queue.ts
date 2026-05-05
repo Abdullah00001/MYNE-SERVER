@@ -8,13 +8,16 @@ export interface IPriceSyncJobData {
   bagId: string;
   brand: string;
   model: string;
-  color: string;
+  color: string[];
   condition: string;
   leather: string;
   hardware: string;
   size: string;
+  variant:string;
+  specialVariant:string|null;
+  imageSearchQuery:string;
+  purchasePrice: Number|null;
   updateType: 'CURRENT' | 'HISTORICAL';
-  variant:string
 }
 
 @injectable()

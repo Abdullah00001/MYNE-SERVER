@@ -36,6 +36,9 @@ export class PriceSyncWorker extends BaseWorker {
       size,
       updateType,
       variant,
+      imageSearchQuery,
+      specialVariant,
+      purchasePrice,
     } = job.data;
 
     try {
@@ -53,7 +56,10 @@ export class PriceSyncWorker extends BaseWorker {
           leather,
           hardware,
           size,
-          variant,
+          construction: variant,
+          special_variant: specialVariant,
+          image_search_query: imageSearchQuery,
+          purchase_price: purchasePrice,
         }
       );
 

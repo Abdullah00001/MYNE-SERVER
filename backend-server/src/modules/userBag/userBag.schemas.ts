@@ -1,5 +1,5 @@
 import { isValidObjectId } from 'mongoose';
-import { z } from 'zod';
+import { string, z } from 'zod';
 
 import { PublishStatus } from './userBag.types';
 
@@ -460,13 +460,15 @@ export const createBagStepOneSchema = z.object({
     }),
 
   // Bag properties
-  bagColor: z
-    .string({
-      error: 'Bag color is required',
-    })
-    .min(1, {
-      error: 'Bag color cannot be empty',
-    }),
+  bagColor: z.array(
+    z
+      .string({
+        error: 'Bag color is required',
+      })
+      .min(1, {
+        error: 'Bag color cannot be empty',
+      })
+  ),
   hardwareColor: z
     .string({
       error: 'Bag hardware color is required',
@@ -530,6 +532,8 @@ export const createBagStepOneSchema = z.object({
     .min(1, {
       error: 'Condition cannot be empty',
     }),
+  specialVariant: z.string().nullable(),
+  imageSearchQuery:string().nullable(),
 });
 
 export type TCreateBagStepOne = z.infer<typeof createBagStepOneSchema>;

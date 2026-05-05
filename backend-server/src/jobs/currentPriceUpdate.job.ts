@@ -4,7 +4,9 @@ import { container } from 'tsyringe';
 import { logger } from '@/configs';
 import UserCollection from '@/modules/userBag/userBag.model';
 import { PublishStatus } from '@/modules/userBag/userBag.types';
-import { PriceSyncQueue } from '@/queue/queues/priceSync.queue';
+import { IPriceSyncJobData, PriceSyncQueue } from '@/queue/queues/priceSync.queue';
+import { IBrand } from '@/modules/brand/brand.types';
+import { IModel } from '@/modules/model/model.types';
 
 const getPriceSyncQueue = (): PriceSyncQueue =>
   container.resolve(PriceSyncQueue);
@@ -55,17 +57,20 @@ const performPriceUpdate = async (): Promise<void> => {
 
     // Add jobs to queue
     const jobPromises = publishedBags.map(async (bag) => {
-      const jobData = {
-        bagId: bag._id.toString(),
-        brand: (bag.brandId as any).brandName,
-        model: (bag.modelId as any).modelName,
+      const jobData: IPriceSyncJobData = {
+        brand: (bag.brandId as IBrand).brandName,
+        model: (bag.modelId as IModel).modelName,
         color: bag.bagColor,
         condition: bag.condition,
         leather: bag.material,
         hardware: bag.hardwareColor,
         size: bag.size,
+        variant: bag.variant,
+        specialVariant: bag.specialVariant,
+        imageSearchQuery: bag.imageSearchQuery,
+        bagId: String(bag._id),
         updateType,
-        variant:bag.variant
+        purchasePrice:Number(bag.purchasePrice)
       };
 
       await priceSyncQueue.addPriceSyncJob(jobData);
