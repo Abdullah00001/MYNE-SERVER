@@ -263,7 +263,7 @@ export class WishlistService {
   }: {
     wish: IWishlist;
     payload: TUpdateWishPayload;
-  }): Promise<CreateWishDTO> {
+  }): Promise<unknown> {
     try {
       const { currency, image, note, priority, status, targetPrice } = payload;
       const updatedWish = await Wishlist.findOneAndUpdate(
@@ -276,7 +276,7 @@ export class WishlistService {
       if (!updatedWish) {
         throw new Error('Something went wrong while updating wish status');
       }
-      return CreateWishDTO.fromEntity(updatedWish);
+      return updatedWish;
     } catch (error) {
       if (error instanceof Error) throw error;
       throw new Error(

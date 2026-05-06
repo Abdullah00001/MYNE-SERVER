@@ -71,7 +71,7 @@ export const UpdateWishSchema = z.object({
   priority: z.string().optional(),
   note: z.string().optional(),
   currency: z.string().optional(),
-  targetPrice: z.string().optional(),
+  targetPrice: z.number().optional(),
   image: z.string().optional(),
   status: z.string().optional(),
 });
