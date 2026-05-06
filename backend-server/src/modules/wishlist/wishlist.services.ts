@@ -16,6 +16,8 @@ import {
   TCreateWishPayload,
   TUpdateWishPayload,
 } from '@/modules/wishlist/wishlist.schemas';
+import { IUser } from '@/modules/auth/auth.types';
+import { Schema } from 'mongoose';
 
 @injectable()
 export class WishlistService {
@@ -28,7 +30,7 @@ export class WishlistService {
     user,
     payload,
   }: {
-    user: JwtPayload;
+    user: IUser;
     payload: TCreateWishPayload;
   }): Promise<unknown> {
     const {
@@ -49,7 +51,7 @@ export class WishlistService {
     } = payload;
     try {
       const newWish = new Wishlist({
-        userId: new Types.ObjectId(user.sub as string),
+        userId: user._id,
         brandId: new Types.ObjectId(brandId),
         modelId: new Types.ObjectId(modelId),
         priority,
@@ -94,7 +96,7 @@ export class WishlistService {
     limit,
     priority,
   }: {
-    user: JwtPayload;
+    user: IUser;
     page?: string;
     limit?: string;
     priority?: string;
@@ -103,12 +105,12 @@ export class WishlistService {
       const queryPage = parseInt(page || '1', 10);
       const queryLimit = parseInt(limit || '10', 10);
       const skip = (queryPage - 1) * queryLimit;
-      const userId = new Types.ObjectId(user.sub as string);
-      const matchStage: { userId: Types.ObjectId; priority?: string } = {
+      const userId = user?._id;
+      const matchStage: { userId: Schema.Types.ObjectId; priority?: string } = {
         userId,
       };
       if (priority) matchStage.priority = priority;
-
+      console.log(matchStage);
       const [result] = await Wishlist.aggregate([
         { $match: matchStage },
         {
@@ -174,7 +176,7 @@ export class WishlistService {
           },
         },
       ]);
-
+      console.log(result);
       // Extract the results
       const wishes = result?.wishes || [];
       const totalCount = result?.totalCount[0]?.count || 0;

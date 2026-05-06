@@ -5,6 +5,7 @@ import { injectable } from 'tsyringe';
 import { BaseController } from '@/core/base_classes/base.controller';
 import { WishlistService } from '@/modules/wishlist/wishlist.services';
 import { TUpdateWishPayload } from '@/modules/wishlist/wishlist.schemas';
+import { IUser } from '@/modules/auth/auth.types';
 
 @injectable()
 export class WishlistController extends BaseController {
@@ -23,7 +24,7 @@ export class WishlistController extends BaseController {
   }
 
   private async _createWish(req: Request, res: Response): Promise<void> {
-    const user = req.user as JwtPayload;
+    const user = req.user as IUser;
     const payload = req.body;
     const data = await this.wishlistService.createWish({
       user,
@@ -49,7 +50,7 @@ export class WishlistController extends BaseController {
   }
 
   private async _getWishes(req: Request, res: Response): Promise<void> {
-    const user = req.user as JwtPayload;
+    const user = req.user as IUser;
     const { page, limit, priority } = req.query as {
       page?: string;
       limit?: string;

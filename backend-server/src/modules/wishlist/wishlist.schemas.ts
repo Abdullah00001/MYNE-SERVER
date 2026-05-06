@@ -16,7 +16,7 @@ export const CreateWishSchema = z.object({
   modelId: objectIdSchema.refine((val) => val, {
     message: 'Invalid model ID',
   }),
-  color: z.string().min(1, 'Color is required'),
+  color: z.array(z.string().min(1, 'Color is required')),
   material: z.string().min(1, 'Leather type is required'),
   hardwareColor: z
     .string({
@@ -57,7 +57,7 @@ export const CreateWishSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']),
   note: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
-  targetPrice: z.string().min(1, 'Target price is required'),
+  targetPrice: z.number(),
   image: z
     .string({
       error: 'Variant is required',

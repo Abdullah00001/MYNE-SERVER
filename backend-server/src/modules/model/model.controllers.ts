@@ -35,6 +35,7 @@ export class ModelController extends BaseController {
     const mimeType = req.file?.mimetype as string;
     const user = req.user as JwtPayload;
     const { modelName, brandId } = req.body;
+    console.log({ modelName, brandId });
     const data = await this.modelService.createModel({
       brandId,
       fileName,

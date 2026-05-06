@@ -39,6 +39,7 @@ export class BrandController extends BaseController {
 
   private async _createBrand(req: Request, res: Response): Promise<void> {
     const { brandName } = req.body;
+    console.log(brandName);
     const fileName = req?.file?.filename as string;
     const mimeType = req?.file?.mimetype as string;
     const user = req.user as JwtPayload;
