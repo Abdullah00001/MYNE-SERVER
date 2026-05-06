@@ -436,7 +436,7 @@ export class UserBagService {
             construction: collection.variant,
             special_variant: collection.specialVariant,
             image_search_query: collection.imageSearchQuery,
-            purchase_price:collection.purchasePrice
+            purchase_price: collection.purchasePrice,
           }
         );
 
@@ -706,6 +706,7 @@ export class UserBagService {
         userId: user._id,
         isArchived: isArchived ?? false,
         publishStatus: PublishStatus.PUBLISHED,
+        isAdmin:false
       };
 
       if (brand) {
@@ -995,6 +996,7 @@ export class UserBagService {
       const limit = queryLimit ?? 10;
       const skip = (page - 1) * limit;
       const [result] = await UserCollection.aggregate([
+        { $match: { isAdmin: true } },
         {
           $facet: {
             collections: [
@@ -1239,7 +1241,7 @@ export class UserBagService {
 
       const [result] = await UserCollection.aggregate([
         {
-          $match: { _id: collection._id },
+          $match: { _id: collection._id, isAdmin: false },
         },
         {
           $lookup: {
@@ -1300,7 +1302,7 @@ export class UserBagService {
           construction: collection.variant,
           special_variant: collection.specialVariant,
           image_search_query: collection.imageSearchQuery,
-          purchase_price:collection.purchasePrice
+          purchase_price: collection.purchasePrice,
         }
       );
       const aiResponsePayload = plainResponse.data?.data;
