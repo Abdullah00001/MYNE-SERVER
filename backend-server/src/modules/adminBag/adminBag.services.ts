@@ -109,7 +109,8 @@ export class AdminBagService {
       aiFields.priceStatus = {
         trend: aiData?.trend ?? null,
         changePercentage: aiData?.change_percentage ?? null,
-        currentValue: aiData?.current_value ?? null,
+        currentMinValue: aiData?.price_range?.min ?? null,
+        currentMaxValue: aiData?.price_range?.min ?? null,
         currency,
         fetchedAt: new Date().toISOString(),
       };

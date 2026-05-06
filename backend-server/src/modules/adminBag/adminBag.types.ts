@@ -12,7 +12,8 @@ export enum TrendEnum {
 export type Currency = (typeof CURRENCIES)[number];
 
 export type TAdminBagPriceStatus = {
-  currentValue: number;
+  currentMinValue: { type: Number; default: null };
+  currentMaxValue: { type: Number; default: null };
   currency: Currency;
   changePercentage: number;
   trend: TrendEnum;

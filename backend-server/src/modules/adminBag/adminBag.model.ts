@@ -19,7 +19,8 @@ export enum TrendEnum {
 export type Currency = (typeof CURRENCIES)[number];
 
 export type TAdminBagPriceStatus = {
-  currentValue: number;
+  currentMinValue: number;
+  currentMaxValue: number;
   currency: Currency;
   changePercentage: number;
   trend: TrendEnum;
@@ -47,7 +48,8 @@ export const PriceStatusSchema = new Schema<TAdminBagPriceStatus>(
   {
     trend: { type: String, enum: TrendEnum, default: null },
     changePercentage: { type: Number, default: null },
-    currentValue: { type: Number, default: null },
+    currentMinValue: { type: Number, default: null },
+    currentMaxValue: { type: Number, default: null },
     currency: {
       type: String,
       enum: CURRENCIES,
