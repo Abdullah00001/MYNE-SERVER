@@ -7,9 +7,15 @@ import {
   FieldConfig,
   uploadFields,
 } from '@/middlewares/multer.middleware';
+import { validateReqBody } from '@/middlewares/validateReqBody.middleware';
 import { AuthMiddleware } from '@/modules/auth/auth.middlewares';
 import { BrandController } from '@/modules/brand/brand.controllers';
 import { BrandMiddleware } from '@/modules/brand/brand.middlewares';
+import {
+  CreateBrandSchema,
+  UpdateBrandInfoSchema,
+  UpdateBrandSchema,
+} from '@/modules/brand/brand.schemas';
 
 const router = Router();
 
@@ -42,6 +48,7 @@ router
     authMiddleware.checkAdminAccessToken,
     uploadSingle('brandLogo'),
     handleMulterError,
+    validateReqBody(CreateBrandSchema),
     brandMiddleware.checkBrandByName,
     controller.createBrand
   )
@@ -58,11 +65,13 @@ router
     brandMiddleware.findBrandById,
     uploadFields(brandImageFields),
     handleMulterError,
+    validateReqBody(UpdateBrandInfoSchema),
     controller.editBrandInfo
   )
   .patch(
     authMiddleware.checkAdminAccessToken,
     brandMiddleware.findBrandById,
+    validateReqBody(UpdateBrandSchema),
     controller.editBrandName
   )
   .delete(
