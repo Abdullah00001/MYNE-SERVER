@@ -1,0 +1,21 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "ai-server",
+    "codex/find-reason-for-model-id-creation-with-zod",
+    "development",
+    "main"
+  ],
+  "parent": {
+    "ai-server": "main",
+    "codex/find-reason-for-model-id-creation-with-zod": "main",
+    "development": "main",
+    "main": null
+  },
+  "order": [
+    "main",
+    "ai-server",
+    "codex/find-reason-for-model-id-creation-with-zod",
+    "development"
+  ]
+}
