@@ -341,7 +341,7 @@ export class AdminBagService {
     try {
       const key = this.systemUtils.extractS3KeyFromUrl(bag.primaryImage);
       await this.s3Utils.singleDelete({ key });
-      await AdminBag.findByIdAndDelete(bag._id);
+      await UserCollection.findByIdAndDelete(bag._id);
     } catch (error) {
       if (error instanceof Error) throw error;
       throw new Error('Unknown Error Occurred In Admin Bag Deletion Service');
@@ -351,13 +351,10 @@ export class AdminBagService {
   async updateAdminBag({
     bag,
     file,
-    payload,
   }: {
     bag: IUserBag;
-    payload: TUpdateAdminBagPayload;
     file?: string;
   }): Promise<unknown> {
-    const { bagColor, material, hardwareColor, size, condition } = payload;
     let bagImage = bag.primaryImage;
     try {
       if (file) {
@@ -375,15 +372,10 @@ export class AdminBagService {
         });
       }
 
-      const data = await AdminBag.findByIdAndUpdate(
+      const data = await UserCollection.findByIdAndUpdate(
         bag._id,
         {
-          image: bagImage,
-          bagColor,
-          material,
-          hardwareColor,
-          size,
-          condition,
+          primaryImage: bagImage
         },
         { new: true }
       );

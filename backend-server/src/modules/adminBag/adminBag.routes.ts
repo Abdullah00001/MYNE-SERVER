@@ -39,7 +39,6 @@ router
     middleware.findAdminBagById,
     uploadFields([{ name: 'bagImage', maxCount: 1, optional: true }]),
     handleMulterError,
-    validateReqBody(UpdateAdminBagSchema),
     controller.updateAdminBag
   )
   .get(

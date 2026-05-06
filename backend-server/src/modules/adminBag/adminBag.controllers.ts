@@ -72,12 +72,10 @@ export class AdminBagController extends BaseController {
 
   public async _updateAdminBag(req: Request, res: Response): Promise<void> {
     const bag = req.adminBag;
-    const payload = req.body as TUpdateAdminBagPayload;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const file = files?.bagImage?.[0];
     const data = await this.adminBagService.updateAdminBag({
       bag,
-      payload,
       file: file?.filename,
     });
     res.status(200).json({
