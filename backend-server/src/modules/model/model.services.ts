@@ -100,7 +100,7 @@ export class ModelService {
       const data = await ModelModel.findByIdAndUpdate(
         model._id,
         { $set: { modelName, modelImage } },
-        { new: true }
+        { new: true, runValidators: true }
       );
 
       if (!data) {
@@ -125,7 +125,7 @@ export class ModelService {
       const data = await ModelModel.findByIdAndUpdate(
         model._id,
         { $set: { modelName } },
-        { new: true }
+        { new: true, runValidators: true }
       );
       if (!data) {
         throw new Error('Something went wrong update model service');

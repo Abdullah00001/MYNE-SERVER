@@ -248,10 +248,15 @@ export class BrandService {
         });
       }
 
+      const updatePayload: { brandLogo: string; brandName?: string } = {
+        brandLogo,
+      };
+      if (brandName) updatePayload.brandName = brandName;
+
       const data = await Brand.findByIdAndUpdate(
         brand?._id,
-        { $set: { brandName, brandLogo } },
-        { new: true }
+        { $set: updatePayload },
+        { new: true, runValidators: true }
       );
 
       if (!data)
@@ -275,7 +280,7 @@ export class BrandService {
       const data = await Brand.findByIdAndUpdate(
         brand?._id,
         { $set: { brandName } },
-        { new: true }
+        { new: true, runValidators: true }
       );
       if (!data)
         throw new Error('Something went wrong on brand info update operation');
