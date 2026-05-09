@@ -155,7 +155,7 @@ export class UserBagService {
       wearChecklist,
       imageSearchQuery,
     };
-    if (imageSearchQuery === null) {
+    if (!imageSearchQuery) {
       payloadWithImage.imageSearchQuery =
         this.systemUtils.buildImageSearchQuery({
           brand: brand?.brandName as string,
@@ -1311,7 +1311,7 @@ export class UserBagService {
         aiResponsePayload?.sources_used?.flatMap(
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
-         console.log(aiResponsePayload?.sources_used);
+      console.log(aiResponsePayload?.sources_used);
       return {
         ...result,
         aiSuggestedPrice: aiResponsePayload?.current_value,

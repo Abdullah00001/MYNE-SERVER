@@ -277,6 +277,6 @@ export class SystemUtils {
     condition: string;
     specialVariant: string | null;
   }): string {
-    return `${brand} ${model} ${size} ${bagColor} ${material} ${hardwareColor} ${variant} ${specialVariant} ${condition}`;
+    return `${brand} ${model} ${size} ${Array.isArray(bagColor) ? bagColor.join(' ') : bagColor} ${material} ${hardwareColor} ${variant !== 'none' && variant} ${specialVariant !== 'none' && specialVariant} ${condition}`;
   }
 }
