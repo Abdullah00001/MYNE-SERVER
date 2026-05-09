@@ -707,7 +707,7 @@ export class UserBagService {
         userId: user._id,
         isArchived: isArchived ?? false,
         publishStatus: PublishStatus.PUBLISHED,
-        isAdmin:false
+        isAdmin: false,
       };
 
       if (brand) {
@@ -1307,11 +1307,15 @@ export class UserBagService {
         }
       );
       const aiResponsePayload = plainResponse.data?.data;
-
+      const allSites =
+        aiResponsePayload?.sources_used?.flatMap(
+          (s: { type: string; sites: string[] }) => s.sites
+        ) ?? [];
+         console.log(aiResponsePayload?.sources_used);
       return {
         ...result,
         aiSuggestedPrice: aiResponsePayload?.current_value,
-        source: aiResponsePayload?.sources_used.sites
+        source: allSites,
       };
     } catch (error) {
       if (error instanceof Error) throw error;

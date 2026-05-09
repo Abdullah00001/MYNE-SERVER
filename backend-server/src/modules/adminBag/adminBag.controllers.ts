@@ -59,7 +59,7 @@ export class AdminBagController extends BaseController {
     return;
   }
 
-  public async _deleteAdminBag(req: Request, res: Response): Promise<void> {
+  private async _deleteAdminBag(req: Request, res: Response): Promise<void> {
     const bag = req.adminBag;
     await this.adminBagService.deleteAdminBag({ bag });
     res.status(200).json({
@@ -70,7 +70,7 @@ export class AdminBagController extends BaseController {
     return;
   }
 
-  public async _updateAdminBag(req: Request, res: Response): Promise<void> {
+  private async _updateAdminBag(req: Request, res: Response): Promise<void> {
     const bag = req.adminBag;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const file = files?.bagImage?.[0];
@@ -87,13 +87,19 @@ export class AdminBagController extends BaseController {
     return;
   }
 
-  public async _getOneAdminBag(req: Request, res: Response): Promise<void> {
-    const bag = req.adminBag;
+  private async _getOneAdminBag(req: Request, res: Response): Promise<void> {
+    const { year } = req.query as { year?: string };
+    const collection = req.adminBag;
+    const data = await this.adminBagService.getOneAdminBag({
+      collection,
+      year,
+    });
+    console.log(data);
     res.status(200).json({
       success: true,
       status: 200,
       message: 'One Admin Bags Retrieve Successful',
-      data: bag,
+      data,
     });
     return;
   }

@@ -33,6 +33,8 @@ import {
 import Brand from '@/modules/brand/brand.model';
 import ModelModel from '@/modules/model/model.model';
 import { monthNameMap } from '@/const';
+import { IBrand } from '@/modules/brand/brand.types';
+import { IModel } from '@/modules/model/model.types';
 
 @injectable()
 export class AdminBagService {
@@ -393,5 +395,90 @@ export class AdminBagService {
   }: {
     collection: IUserBag;
     year?: string;
-  }) {}
+  }) {
+    try {
+      const targetYear = year ?? new Date().getFullYear().toString();
+
+      const [result] = await UserCollection.aggregate([
+        {
+          $match: { _id: collection._id, isAdmin: true },
+        },
+        {
+          $lookup: {
+            from: 'brands',
+            localField: 'brandId',
+            foreignField: '_id',
+            as: 'brandId',
+          },
+        },
+        {
+          $unwind: '$brandId',
+        },
+        {
+          $lookup: {
+            from: 'models',
+            localField: 'modelId',
+            foreignField: '_id',
+            as: 'modelId',
+          },
+        },
+        {
+          $unwind: '$modelId',
+        },
+        {
+          $addFields: {
+            // All available years as an array for frontend year picker
+            historicalValueYears: {
+              $map: {
+                input: {
+                  $objectToArray: { $ifNull: ['$historicalValue', {}] },
+                },
+                as: 'entry',
+                in: '$$entry.k',
+              },
+            },
+            // Only the selected year's full month data
+            historicalValue: {
+              $cond: {
+                if: { $ifNull: [`$historicalValue.${targetYear}`, false] },
+                then: { [targetYear]: `$historicalValue.${targetYear}` },
+                else: null,
+              },
+            },
+          },
+        },
+      ]);
+      if (!result) throw new Error('Bag not found');
+      const plainResponse = await axios.post(
+        `${env.AI_SERVER_URL}/bags/price`,
+        {
+          brand: (collection.brandId as IBrand).brandName,
+          model: (collection.modelId as IModel).modelName,
+          color: collection.bagColor,
+          condition: collection.condition,
+          leather: collection.material,
+          hardware: collection.hardwareColor,
+          size: collection.size,
+          construction: collection.variant,
+          special_variant: collection.specialVariant,
+          image_search_query: collection.imageSearchQuery,
+          purchase_price: collection.purchasePrice,
+        }
+      );
+      const aiResponsePayload = plainResponse.data?.data;
+      const allSites =
+        aiResponsePayload?.sources_used?.flatMap(
+          (s: { type: string; sites: string[] }) => s.sites
+        ) ?? [];
+     
+      return {
+        ...result,
+        aiSuggestedPrice: aiResponsePayload?.current_value,
+        source: allSites,
+      };
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error('An Unexpected Error Occurred In Get One Bag Service');
+    }
+  }
 }

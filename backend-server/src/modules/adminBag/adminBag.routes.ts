@@ -67,7 +67,7 @@ router
     authMiddleware.checkAccessToken,
     authMiddleware.checkUserAccountStatus,
     middleware.findAdminBagById,
-    controller._getOneAdminBag
+    controller.getOneAdminBag
   );
 
 export default router;
