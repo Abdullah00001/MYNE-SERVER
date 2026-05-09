@@ -8,20 +8,38 @@ const objectIdSchema = z.string().refine((val) => isValidObjectId(val), {
 
 // Create schema
 export const CreateAdminBagSchema = z.object({
-  brandId: objectIdSchema,
-  modelId: objectIdSchema,
-  bagColor: z
-    .array(
-      z
-        .string({
-          error: 'Each color must be a string',
-        })
-        .min(1, {
-          message: 'Color name cannot be empty',
-        })
-    )
+  brandId: z
+    .string({
+      error: 'Brand ID is required',
+    })
+    .refine((val) => isValidObjectId(val), {
+      message: 'Invalid Brand ID format',
+    }),
+
+  modelId: z
+    .string({
+      error: 'Model ID is required',
+    })
+    .refine((val) => isValidObjectId(val), {
+      message: 'Invalid Model ID format',
+    }),
+
+  // Bag properties
+  bagColor: z.array(
+    z
+      .string({
+        error: 'Bag color is required',
+      })
+      .min(1, {
+        error: 'Bag color cannot be empty',
+      })
+  ),
+  material: z
+    .string({
+      error: 'Leather type is required',
+    })
     .min(1, {
-      message: 'Bag color is required and needs at least one selection',
+      error: 'Leather type cannot be empty',
     }),
   variant: z
     .string({
@@ -30,20 +48,13 @@ export const CreateAdminBagSchema = z.object({
     .min(1, {
       error: 'Variant cannot be empty',
     }),
-  material: z
-    .string({
-      error: 'Leather type is required',
-    })
-    .min(1, {
-      error: 'Leather type cannot be empty',
-    }),
 
   hardwareColor: z
     .string({
-      error: 'Hardware color is required',
+      error: 'Bag hardware color is required',
     })
     .min(1, {
-      error: 'Hardware color cannot be empty',
+      error: 'Bag hardware color cannot be empty',
     }),
 
   size: z
