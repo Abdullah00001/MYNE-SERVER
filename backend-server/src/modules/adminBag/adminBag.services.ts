@@ -160,7 +160,7 @@ export class AdminBagService {
         imageSearchQuery,
         // productionYear: priceData.productionYear,
         ...aiFields,
-        user: new Types.ObjectId(user._id as string),
+        userId: new Types.ObjectId(user._id as string),
       });
       await newAdminBag.save();
       return newAdminBag;
