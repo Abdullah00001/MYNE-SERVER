@@ -25,15 +25,10 @@ export const CreateAdminBagSchema = z.object({
     }),
 
   // Bag properties
-  bagColor: z.array(
-    z
-      .string({
-        error: 'Bag color is required',
-      })
-      .min(1, {
-        error: 'Bag color cannot be empty',
-      })
-  ),
+  bagColor: z
+    .union([z.string(), z.array(z.string())])
+    .transform((val) => (Array.isArray(val) ? val : [val]))
+    .pipe(z.array(z.string().min(1))),
   material: z
     .string({
       error: 'Leather type is required',
