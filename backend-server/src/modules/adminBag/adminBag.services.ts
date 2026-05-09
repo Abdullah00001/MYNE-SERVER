@@ -375,7 +375,7 @@ export class AdminBagService {
       const data = await UserCollection.findByIdAndUpdate(
         bag._id,
         {
-          primaryImage: bagImage
+          primaryImage: bagImage,
         },
         { new: true }
       );
@@ -386,4 +386,12 @@ export class AdminBagService {
       throw new Error('Unknown Error Occurred In Update Bag Service');
     }
   }
+
+  async getOneAdminBag({
+    collection,
+    year,
+  }: {
+    collection: IUserBag;
+    year?: string;
+  }) {}
 }

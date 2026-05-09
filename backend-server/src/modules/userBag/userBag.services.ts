@@ -997,7 +997,7 @@ export class UserBagService {
       const limit = queryLimit ?? 10;
       const skip = (page - 1) * limit;
       const [result] = await UserCollection.aggregate([
-        { $match: { isAdmin: true } },
+        { $match: { isAdmin: false } },
         {
           $facet: {
             collections: [
@@ -1311,6 +1311,7 @@ export class UserBagService {
       return {
         ...result,
         aiSuggestedPrice: aiResponsePayload?.current_value,
+        source: aiResponsePayload?.sources_used.sites
       };
     } catch (error) {
       if (error instanceof Error) throw error;
