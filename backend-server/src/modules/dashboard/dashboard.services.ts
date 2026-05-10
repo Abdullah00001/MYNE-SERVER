@@ -20,27 +20,67 @@ export class DashboardService {
     try {
       const { userActivityByYear } = query;
       const targetYear = userActivityByYear ?? new Date().getFullYear();
+
       const [totalUsers, totalBags, bagStats, userActivity, topBrands] =
         await Promise.all([
           // 1. Total Users
           User.countDocuments({}),
 
-          // 2. Total Bags
-          UserCollection.countDocuments({}),
+          // 2. Total Bags — exclude admin-created bags
+          UserCollection.countDocuments({ isAdmin: false }),
 
-          // 3. Total Cost & Current Value
+          // 3. Total Cost & Current Value (median of min+max per bag, summed)
+          // Median = (currentMinValue + currentMaxValue) / 2
           UserCollection.aggregate([
+            { $match: { isAdmin: false } },
             {
               $group: {
                 _id: null,
-                totalCost: { $sum: '$purchasePrice' },
-                currentValue: { $sum: '$priceStatus.currentValue' },
+                totalCost: { $sum: { $ifNull: ['$purchasePrice', 0] } },
+                totalCurrentValue: {
+                  $sum: {
+                    $cond: {
+                      if: {
+                        $and: [
+                          {
+                            $gt: [
+                              {
+                                $ifNull: ['$priceStatus.currentMinValue', null],
+                              },
+                              null,
+                            ],
+                          },
+                          {
+                            $gt: [
+                              {
+                                $ifNull: ['$priceStatus.currentMaxValue', null],
+                              },
+                              null,
+                            ],
+                          },
+                        ],
+                      },
+                      then: {
+                        $divide: [
+                          {
+                            $add: [
+                              '$priceStatus.currentMinValue',
+                              '$priceStatus.currentMaxValue',
+                            ],
+                          },
+                          2,
+                        ],
+                      },
+                      else: 0,
+                    },
+                  },
+                },
               },
             },
             {
               $addFields: {
                 totalCost: { $round: ['$totalCost', 2] },
-                currentValue: { $round: ['$currentValue', 2] },
+                totalCurrentValue: { $round: ['$totalCurrentValue', 2] },
               },
             },
           ]),
@@ -50,8 +90,8 @@ export class DashboardService {
             {
               $match: {
                 createdAt: {
-                  $gte: new Date(targetYear, 0, 1), // Jan 1 of targetYear
-                  $lt: new Date(targetYear + 1, 0, 1), // Jan 1 of next year
+                  $gte: new Date(targetYear, 0, 1),
+                  $lt: new Date(targetYear + 1, 0, 1),
                 },
               },
             },
@@ -61,9 +101,7 @@ export class DashboardService {
                 count: { $sum: 1 },
               },
             },
-            {
-              $sort: { '_id.month': 1 },
-            },
+            { $sort: { '_id.month': 1 } },
             {
               $project: {
                 _id: 0,
@@ -74,8 +112,9 @@ export class DashboardService {
             },
           ]),
 
-          // 5. Top Brands (Top 4 as shown in your UI)
+          // 5. Top Brands (Top 4) — exclude admin-created bags
           UserCollection.aggregate([
+            { $match: { isAdmin: false } },
             {
               $lookup: {
                 from: 'brands',
@@ -84,17 +123,53 @@ export class DashboardService {
                 as: 'brand',
               },
             },
-            {
-              $unwind: '$brand',
-            },
+            { $unwind: '$brand' },
             {
               $group: {
                 _id: '$brandId',
                 brandName: { $first: '$brand.brandName' },
                 brandLogo: { $first: '$brand.brandLogo' },
                 totalBags: { $sum: 1 },
-                bagCost: { $sum: '$purchasePrice' },
-                currentValue: { $sum: '$priceStatus.currentValue' },
+                bagCost: { $sum: { $ifNull: ['$purchasePrice', 0] } },
+                // Sum of medians: (min + max) / 2 per bag
+                currentValue: {
+                  $sum: {
+                    $cond: {
+                      if: {
+                        $and: [
+                          {
+                            $gt: [
+                              {
+                                $ifNull: ['$priceStatus.currentMinValue', null],
+                              },
+                              null,
+                            ],
+                          },
+                          {
+                            $gt: [
+                              {
+                                $ifNull: ['$priceStatus.currentMaxValue', null],
+                              },
+                              null,
+                            ],
+                          },
+                        ],
+                      },
+                      then: {
+                        $divide: [
+                          {
+                            $add: [
+                              '$priceStatus.currentMinValue',
+                              '$priceStatus.currentMaxValue',
+                            ],
+                          },
+                          2,
+                        ],
+                      },
+                      else: 0,
+                    },
+                  },
+                },
               },
             },
             {
@@ -120,12 +195,8 @@ export class DashboardService {
                 },
               },
             },
-            {
-              $sort: { totalBags: -1 },
-            },
-            {
-              $limit: 4,
-            },
+            { $sort: { totalBags: -1 } },
+            { $limit: 4 },
             {
               $project: {
                 _id: 1,
@@ -162,7 +233,8 @@ export class DashboardService {
         month: MONTH_NAMES[i],
         count: activityMap.get(i + 1) ?? 0,
       }));
-      const stats = bagStats[0] || { totalCost: 0, currentValue: 0 };
+
+      const stats = bagStats[0] || { totalCost: 0, totalCurrentValue: 0 };
 
       return {
         success: true,
@@ -170,7 +242,7 @@ export class DashboardService {
           totalUsers,
           totalBags,
           totalCost: stats.totalCost,
-          currentValue: stats.currentValue,
+          currentValue: stats.totalCurrentValue,
           userActivity: fullYearActivity,
           topBrands,
         },
@@ -193,21 +265,52 @@ export class DashboardService {
         return d;
       };
 
-      // ─── Totals + trend aggregation across ALL collections ──────────────────
+      // ─── Totals + trend aggregation — only user bags (isAdmin: false) ────────
       const [summary] = await UserCollection.aggregate([
-        { $match: { isArchived: false } },
+        { $match: { isArchived: false, isAdmin: false } },
         {
           $group: {
             _id: null,
             totalBags: { $sum: 1 },
             totalPurchasePrice: { $sum: { $ifNull: ['$purchasePrice', 0] } },
+            // currentValue per bag = median of (currentMinValue + currentMaxValue) / 2
             totalCurrentPrice: {
-              $sum: { $ifNull: ['$priceStatus.currentValue', 0] },
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      {
+                        $gt: [
+                          { $ifNull: ['$priceStatus.currentMinValue', null] },
+                          null,
+                        ],
+                      },
+                      {
+                        $gt: [
+                          { $ifNull: ['$priceStatus.currentMaxValue', null] },
+                          null,
+                        ],
+                      },
+                    ],
+                  },
+                  then: {
+                    $divide: [
+                      {
+                        $add: [
+                          '$priceStatus.currentMinValue',
+                          '$priceStatus.currentMaxValue',
+                        ],
+                      },
+                      2,
+                    ],
+                  },
+                  else: 0,
+                },
+              },
             },
             avgChangePercentage: {
               $avg: { $ifNull: ['$priceStatus.changePercentage', 0] },
             },
-            // Count each trend type across all bags
             upCount: {
               $sum: {
                 $cond: [{ $eq: ['$priceStatus.trend', TrendEnum.UP] }, 1, 0],
@@ -240,10 +343,8 @@ export class DashboardService {
       );
 
       const deriveOverallTrend = (): TrendEnum => {
-        // Majority vote among trend labels
         const maxCount = Math.max(upCount, downCount, stableCount);
 
-        // If avgChangePercentage is within ±1% treat as stable regardless
         if (Math.abs(avgChangePercentage) <= 1) return TrendEnum.STABLE;
 
         if (maxCount === upCount && avgChangePercentage > 0)
@@ -251,7 +352,6 @@ export class DashboardService {
         if (maxCount === downCount && avgChangePercentage < 0)
           return TrendEnum.DOWN;
 
-        // Tiebreaker: fall back to sign of avgChangePercentage
         if (avgChangePercentage > 1) return TrendEnum.UP;
         if (avgChangePercentage < -1) return TrendEnum.DOWN;
         return TrendEnum.STABLE;
@@ -274,7 +374,11 @@ export class DashboardService {
       ];
 
       const bags = await UserCollection.find(
-        { isArchived: false, historicalValue: { $ne: null } },
+        {
+          isArchived: false,
+          isAdmin: false,
+          historicalValue: { $ne: null },
+        },
         { historicalValue: 1 }
       ).lean();
 
@@ -289,6 +393,8 @@ export class DashboardService {
 
         for (const bag of bags) {
           if (!bag.historicalValue) continue;
+
+          // Handle both Map (Mongoose) and plain object (lean)
           const hvObj = bag.historicalValue as Record<
             string,
             Record<
