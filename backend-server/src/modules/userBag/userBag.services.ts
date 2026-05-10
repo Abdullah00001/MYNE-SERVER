@@ -1012,7 +1012,7 @@ export class UserBagService {
 
         return `${basePath}?${params.toString()}`;
       };
-
+      console.log(metaData);
       return {
         data,
         meta: {
