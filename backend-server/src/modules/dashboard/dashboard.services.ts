@@ -431,7 +431,23 @@ export class DashboardService {
         avgPriceForWindow(getDateBefore(180)),
         avgPriceForWindow(getDateBefore(365)),
       ];
-
+      console.log({
+        totalBags: summary?.totalBags ?? 0,
+        totalPurchasePrice: parseFloat(
+          (summary?.totalPurchasePrice ?? 0).toFixed(2)
+        ),
+        totalCurrentPrice: parseFloat(
+          (summary?.totalCurrentPrice ?? 0).toFixed(2)
+        ),
+        avgChangePercentage,
+        overallTrend: deriveOverallTrend(),
+        priceHistory: {
+          last10Days,
+          last1Month,
+          last6Months,
+          last1Year,
+        },
+      });
       return {
         totalBags: summary?.totalBags ?? 0,
         totalPurchasePrice: parseFloat(
