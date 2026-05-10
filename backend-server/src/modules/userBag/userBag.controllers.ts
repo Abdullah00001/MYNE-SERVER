@@ -352,6 +352,7 @@ export class UserBagController extends BaseController {
   }
 
   private async _checkBrandModel(req: Request, res: Response): Promise<void> {
+    console.log('check brand model payload', req.body);
     const { brandName, modelName } = req.body;
     const data = await this.userBagService.checkBrandModel({
       brandName,
