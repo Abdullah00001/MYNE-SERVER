@@ -104,9 +104,53 @@ export class UserBagService {
     payload: TCreateBagStepOne;
   }): Promise<IUserBag> {
     try {
+      const {
+        bagColor,
+        brandId,
+        condition,
+        hardwareColor,
+        imageSearchQuery,
+        material,
+        modelId,
+        size,
+        specialVariant,
+        variant,
+        wearChecklist,
+      } = payload;
+      const brand = await Brand.findOne({ _id: brandId });
+      if (!brand) throw new Error('Brand Not Found');
+      const model = await ModelModel.findOne({ _id: modelId });
+      if (!model) throw new Error('Model Not Found');
+      const payloadWithImage = {
+        bagColor,
+        brandId,
+        condition,
+        hardwareColor,
+        material,
+        modelId,
+        size,
+        specialVariant,
+        variant,
+        wearChecklist,
+        imageSearchQuery,
+      };
+      if (!imageSearchQuery) {
+        payloadWithImage.imageSearchQuery =
+          this.systemUtils.buildImageSearchQuery({
+            brand: brand?.brandName as string,
+            model: model?.modelName as string,
+            bagColor,
+            condition,
+            hardwareColor,
+            material,
+            size,
+            specialVariant,
+            variant,
+          });
+      }
       const response = new UserCollection({
         userId: user._id,
-        ...payload,
+        ...payloadWithImage,
       });
       await response.save();
       return response;
