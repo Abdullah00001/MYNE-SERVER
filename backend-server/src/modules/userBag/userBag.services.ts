@@ -737,9 +737,8 @@ export class UserBagService {
       const {
         brand,
         material,
-        limit: queryLimit, // queryLimit is alias of limit
-        page: queryPage, // queryPage is alias of page
-        // productionYear,
+        limit: queryLimit,
+        page: queryPage,
         purchaseYear,
         sortByCreatedAt,
         sortByTrending,
@@ -749,6 +748,7 @@ export class UserBagService {
         sortByValue,
       } = query;
 
+      // ─── Base match — always scoped to this user, never admin bags ───────────
       const matchStage: Record<string, any> = {
         userId: user._id,
         isArchived: isArchived ?? false,
@@ -764,53 +764,49 @@ export class UserBagService {
         matchStage.material = material;
       }
 
-      // if (productionYear) {
-      //   matchStage.productionYear = productionYear;
-      // }
-
       if (purchaseYear) {
         matchStage.$expr = {
           $eq: [{ $year: '$purchaseDate' }, purchaseYear],
         };
       }
 
-      // Handle value range - ensure min <= max
-      if (valueRangeMin !== undefined || valueRangeMax !== undefined) {
-        matchStage['priceStatus.currentValue'] = {};
-        if (valueRangeMin !== undefined) {
-          matchStage['priceStatus.currentValue'].$gte = valueRangeMin;
-        }
-        if (valueRangeMax !== undefined) {
-          matchStage['priceStatus.currentValue'].$lte = valueRangeMax;
-        }
+      // ─── Value range filter — min against currentMinValue, max against currentMaxValue
+      if (valueRangeMin !== undefined) {
+        matchStage['priceStatus.currentMinValue'] = {
+          ...matchStage['priceStatus.currentMinValue'],
+          $gte: valueRangeMin,
+        };
       }
 
-      // Build sort stage
+      if (valueRangeMax !== undefined) {
+        matchStage['priceStatus.currentMaxValue'] = {
+          ...matchStage['priceStatus.currentMaxValue'],
+          $lte: valueRangeMax,
+        };
+      }
+
+      // ─── Build sort stage ─────────────────────────────────────────────────────
       const sortStage: Record<string, 1 | -1> = {};
 
       if (sortByCreatedAt) {
         sortStage.createdAt = sortByCreatedAt as 1 | -1;
       }
 
+      // sortByValue sorts on computed median field added via $addFields
       if (sortByValue) {
-        sortStage['priceStatus.currentValue'] = sortByValue as 1 | -1;
+        sortStage['bagMedianValue'] = sortByValue as 1 | -1;
       }
 
       if (sortByTrending) {
-        // Sort by trend field inside priceStatus
-        // 'up' should show 'up' trends first, 'down' should show 'down' trends first
         if (sortByTrending === 'up') {
-          // For 'up': prioritize 'up' trend over 'down' (descending alphabetically)
-          sortStage['priceStatus.trend'] = -1; // 'up' comes before 'down'
-          sortStage['priceStatus.changePercentage'] = -1; // Higher percentages first
+          sortStage['priceStatus.trend'] = -1;
+          sortStage['priceStatus.changePercentage'] = -1;
         } else {
-          // For 'down': prioritize 'down' trend over 'up' (ascending alphabetically)
-          sortStage['priceStatus.trend'] = 1; // 'down' comes before 'up'
-          sortStage['priceStatus.changePercentage'] = 1; // Lower (more negative) first
+          sortStage['priceStatus.trend'] = 1;
+          sortStage['priceStatus.changePercentage'] = 1;
         }
       }
 
-      // Default sort by createdAt descending if no sort specified
       if (Object.keys(sortStage).length === 0) {
         sortStage.createdAt = -1;
       }
@@ -819,8 +815,51 @@ export class UserBagService {
       const limit = queryLimit ?? 10;
       const skip = (page - 1) * limit;
 
+      // ─── Median expression reused across pipeline ─────────────────────────────
+      // (currentMinValue + currentMaxValue) / 2 — falls back to 0 if either is null
+      const medianExpr = {
+        $cond: {
+          if: {
+            $and: [
+              {
+                $gt: [
+                  { $ifNull: ['$priceStatus.currentMinValue', null] },
+                  null,
+                ],
+              },
+              {
+                $gt: [
+                  { $ifNull: ['$priceStatus.currentMaxValue', null] },
+                  null,
+                ],
+              },
+            ],
+          },
+          then: {
+            $divide: [
+              {
+                $add: [
+                  '$priceStatus.currentMinValue',
+                  '$priceStatus.currentMaxValue',
+                ],
+              },
+              2,
+            ],
+          },
+          else: 0,
+        },
+      };
+
       const [result] = await UserCollection.aggregate([
         { $match: matchStage },
+
+        // ─── Add median per bag so we can sort and sum on it ──────────────────
+        {
+          $addFields: {
+            bagMedianValue: medianExpr,
+          },
+        },
+
         {
           $facet: {
             collections: [
@@ -870,13 +909,22 @@ export class UserBagService {
                 },
               },
             ],
+
             metadata: [
               {
                 $group: {
                   _id: null,
                   totalBags: { $sum: 1 },
-                  totalValue: { $sum: '$priceStatus.currentValue' },
-                  totalCost: { $sum: 'purchasePrice' },
+                  // Sum of per-bag medians = total current value
+                  totalValue: { $sum: { $round: ['$bagMedianValue', 2] } },
+                  // Fix: was missing $ sign before
+                  totalCost: { $sum: { $ifNull: ['$purchasePrice', 0] } },
+                },
+              },
+              {
+                $addFields: {
+                  totalValue: { $round: ['$totalValue', 2] },
+                  totalCost: { $round: ['$totalCost', 2] },
                 },
               },
             ],
@@ -889,7 +937,7 @@ export class UserBagService {
         _id: null,
         totalBags: 0,
         totalValue: 0,
-        averageValue: 0,
+        totalCost: 0,
       };
 
       const totalPages = Math.ceil(metaData.totalBags / limit) || 0;
@@ -950,8 +998,6 @@ export class UserBagService {
 
         if (brand) params.set('brand', brand);
         if (material) params.set('material', material);
-        // if (productionYear)
-        //   params.set('productionYear', productionYear.toString());
         if (purchaseYear) params.set('purchaseYear', purchaseYear.toString());
         if (valueRangeMin !== undefined)
           params.set('valueRangeMin', valueRangeMin.toString());
