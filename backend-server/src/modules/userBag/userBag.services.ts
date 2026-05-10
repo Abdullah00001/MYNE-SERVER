@@ -199,6 +199,7 @@ export class UserBagService {
       wearChecklist,
       imageSearchQuery,
     };
+    console.log(bagColor);
     if (!imageSearchQuery) {
       payloadWithImage.imageSearchQuery =
         this.systemUtils.buildImageSearchQuery({
@@ -213,6 +214,7 @@ export class UserBagService {
           variant,
         });
     }
+    console.log(payloadWithImage);
     try {
       const response = await UserCollection.findByIdAndUpdate(
         id,
