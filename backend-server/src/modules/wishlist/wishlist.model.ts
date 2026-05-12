@@ -40,8 +40,8 @@ const WishlistSchema = new Schema<IWishlist>(
     material: { type: String, required: true },
     hardwareColor: { type: String, required: true },
     size: { type: String, required: true },
-    variant: { type: String, required: true },
-    specialVariant: { type: String, required: true },
+    variant: { type: String, default: null },
+    specialVariant: { type: String, default: null },
     priority: { type: String, enum: ['low', 'medium', 'high'], required: true },
     note: { type: String, default: null },
     status: {
