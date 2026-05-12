@@ -1404,9 +1404,26 @@ export class UserBagService {
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
       console.log(aiResponsePayload?.sources_used);
+      const priceStatus = {
+        trend: aiResponsePayload?.trend ?? null,
+        changePercentage: aiResponsePayload?.change_percentage ?? null,
+        currentMinValue: aiResponsePayload?.price_range?.min ?? null,
+        currentMaxValue: aiResponsePayload?.price_range?.max ?? null,
+        currency: aiResponsePayload?.currency ?? null,
+        fetchedAt: new Date().toISOString(),
+      };
+      console.log(priceStatus);
+      // ai suggested price will be median of currentMinValue and currentMaxValue, rounded to 2 decimals.
       return {
         ...result,
-        aiSuggestedPrice: aiResponsePayload?.current_value,
+        aiSuggestedPrice:
+          Math.round(
+            (((priceStatus.currentMinValue ?? 0) +
+              (priceStatus.currentMaxValue ?? 0)) /
+              2) *
+              100
+          ) / 100,
+        priceStatus,
         source: allSites,
       };
     } catch (error) {
@@ -1419,7 +1436,7 @@ export class UserBagService {
     currentPrice,
     collection,
   }: {
-    currentPrice: number;
+    currentPrice: unknown;
     collection: IUserBag;
   }): Promise<IUserBag> {
     try {
@@ -1427,7 +1444,7 @@ export class UserBagService {
         { _id: collection._id },
         {
           $set: {
-            'priceStatus.currentValue': currentPrice,
+            priceStatus: currentPrice,
           },
         },
         { new: true }

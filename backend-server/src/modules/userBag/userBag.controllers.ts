@@ -372,9 +372,9 @@ export class UserBagController extends BaseController {
     res: Response
   ): Promise<void> {
     const collection = req.userBagCollection;
-    const { currentPrice } = req.body as { currentPrice: number };
+    const { currentPrice } = req.body;
     const data = await this.userBagService.changeCollectionCurrentPrice({
-      currentPrice: Number(currentPrice),
+      currentPrice,
       collection,
     });
     res.status(200).json({
