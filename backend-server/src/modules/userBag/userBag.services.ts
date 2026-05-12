@@ -1440,6 +1440,7 @@ export class UserBagService {
     collection: IUserBag;
   }): Promise<IUserBag> {
     try {
+      console.log(currentPrice);
       const result = await UserCollection.findOneAndUpdate(
         { _id: collection._id },
         {
