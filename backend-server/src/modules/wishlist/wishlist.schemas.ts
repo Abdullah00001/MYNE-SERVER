@@ -47,13 +47,7 @@ export const CreateWishSchema = z.object({
     .min(1, {
       error: 'Variant cannot be empty',
     }),
-  specialVariant: z
-    .string({
-      error: 'Special Variant is required',
-    })
-    .min(1, {
-      error: 'Special Variant cannot be empty',
-    }),
+  specialVariant: z.string().nullable(),
   priority: z.enum(['low', 'medium', 'high']),
   note: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
