@@ -37,8 +37,10 @@ import { IBrand } from '@/modules/brand/brand.types';
 import { IModel } from '@/modules/model/model.types';
 import {
   Currency,
-  TAdminBagPriceStatus,
 } from '@/modules/adminBag/adminBag.types';
+import {
+  TAdminBagPriceStatus,
+} from '@/modules/adminBag/adminBag.model';
 import { monthNameMap } from '@/const';
 
 @injectable()
@@ -1433,19 +1435,19 @@ export class UserBagService {
   }
 
   async changeCollectionCurrentPrice({
-    currentPrice,
+    priceStatus,
     collection,
   }: {
-    currentPrice: unknown;
+    priceStatus: TAdminBagPriceStatus;
     collection: IUserBag;
   }): Promise<IUserBag> {
     try {
-      console.log(currentPrice);
+      console.log(priceStatus);
       const result = await UserCollection.findOneAndUpdate(
         { _id: collection._id },
         {
           $set: {
-            priceStatus: currentPrice,
+            priceStatus,
           },
         },
         { new: true }

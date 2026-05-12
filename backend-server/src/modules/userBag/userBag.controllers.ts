@@ -13,6 +13,7 @@ import {
   TPatchUserCollection,
 } from '@/modules/userBag/userBag.schemas';
 import { UserBagService } from '@/modules/userBag/userBag.services';
+import { TAdminBagPriceStatus } from '@/modules/adminBag/adminBag.model';
 
 @injectable()
 export class UserBagController extends BaseController {
@@ -372,9 +373,9 @@ export class UserBagController extends BaseController {
     res: Response
   ): Promise<void> {
     const collection = req.userBagCollection;
-    const { currentPrice } = req.body;
+    const { priceStatus } = req.body as { priceStatus: TAdminBagPriceStatus };
     const data = await this.userBagService.changeCollectionCurrentPrice({
-      currentPrice,
+      priceStatus,
       collection,
     });
     res.status(200).json({
