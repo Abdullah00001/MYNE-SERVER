@@ -499,7 +499,7 @@ export class UserBagService {
           trend: aiData?.trend ?? null,
           changePercentage: aiData?.change_percentage ?? null,
           currentMinValue: aiData?.price_range?.min ?? null,
-          currentMaxValue: aiData?.price_range?.min ?? null,
+          currentMaxValue: aiData?.price_range?.max ?? null,
           currency,
           fetchedAt: new Date().toISOString(),
         };
