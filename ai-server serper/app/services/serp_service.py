@@ -17,10 +17,13 @@ SERPER_HEADERS = {
 # ─────────────────────────────────────────
 
 
-def extract_price(text: str) -> float | None:
+def extract_price(text) -> float | None:
     """Only extract a number if it's directly attached to a currency symbol."""
     if not text:
         return None
+    # Handle if Serper returns a number directly
+    if isinstance(text, (int, float)):
+        return float(text)
     match = re.search(
         r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text)
     if not match:

@@ -43,15 +43,13 @@ class BagMatch(BaseModel):
     # Physical attributes
     detectedConstruction: Optional[str] = None
     detectedColors: List[str] = Field(default=[])   # ALL colors as list
-    detectedLeather: str = Field(default="Not visible")
+    detectedLeathers: str = Field(default=[])  # ALL visible leathers as list
     detectedHardware: str = Field(default="Not visible")
     detectedSize: str = Field(default="Not visible")
     colorAccuracy: int = Field(default=0, ge=0, le=100)
     alternativeColors: List[str] = Field(default=[])
 
     # Identity
-    detectedYear: Optional[str] = None
-    stampLetter: Optional[str] = None
     # "Arlequin", "So Black", "Cargo" etc
     editionName: Optional[str] = None
     # free text: HSS, Bicolor, Standard etc
@@ -107,10 +105,13 @@ IDENTIFICATION RULES:
 - detectedColors: list ALL visible colors using EXACT official brand names. Never generic.
   e.g. never ["blue", "orange"] — always ["Bleu Nuit", "Orange H"]
   For multicolor bags list ALL panels: ["Orange H", "Sanguine", "Bleu Hydra", "Gold", "Etain", "Bleu Lin"]
-- detectedLeather: exact official leather name (Togo, Clemence, Epsom, Caviar, Saffiano etc)
-- detectedConstruction: "Sellier"=rigid/outside stitch | "Retourne"=soft/inside stitch | "Pochette"=clutch | null if not applicable
+- detectedLeathers: exact official leather names (Togo, Clemence, Epsom, Caviar, Saffiano etc), more than one in case of several leather bags.
+- detectedConstruction:
+  "Sellier" = stitching is VISIBLE on the OUTSIDE edge of the bag, sharp corners, rigid structured silhouette
+  "Retourne" = NO visible stitching on outer edge, soft/rounded corners, slight slouch
+  When uncertain between the two, examine the corner shape — sharp = Sellier, rounded = Retourne
+  null only if construction is genuinely not applicable
 - detectedSize: integer only. Estimate from proportions if not visible.
-- stampLetter: Hermès date stamp letter only. Null for all other brands.
 - colorAccuracy: 0-100 confidence in color detection
 - alternativeColors: 2-3 alternatives if uncertain, [] if certain
 - editionName: named edition if identifiable e.g. "Arlequin", "So Black", "Cargo", "Shadow", "Faubourg"
@@ -125,9 +126,10 @@ FLAG RULES:
 - isExotic: true if crocodile, ostrich, lizard, python, or other exotic leather
 
 IMAGE SEARCH QUERY RULES:
-- Always include: Brand + Model + Size + all detectedColors + Leather + Hardware
+- Always include: Brand + Model + Size + all detectedColors + Leather + Hardware + Construction + condition if visible
 - Add editionName if not empty
 - Add special_variant if not Standard
+- Add new if condition new
 - Multicolor example: "Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Clemence Palladium"
 - Exotic example: "Hermès Kelly 28 Sellier Porosus Crocodile Noir Palladium"
 - Limited example: "Chanel Classic Flap So Black 25 Lambskin Black Hardware"
@@ -138,19 +140,17 @@ Return ONLY this JSON shape, no explanation, no markdown:
   {
     "rank":1,
     "brand":"Hermès",
-    "model":"Birkin",
+    "model":"Birkin Arlequin 35",
     "confidence":93,
     "confidenceLabel":"High",
     "estimatedValueEUR":95000,
     "detectedConstruction":"Retourne",
     "detectedColors":["Orange H","Sanguine","Bleu Hydra","Gold","Etain","Bleu Lin"],
-    "detectedLeather":"Clemence",
+    "detectedLeathers": "Clemence, Swift",
     "detectedHardware":"Palladium",
     "detectedSize":"35",
     "colorAccuracy":88,
     "alternativeColors":[],
-    "detectedYear":"2012",
-    "stampLetter":"N",
     "editionName":"Arlequin",
     "special_variant":"Arlequin Limited Edition",
     "isSpecialOrder":true,
@@ -161,19 +161,19 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "isMultiColor":true,
     "isHSS":false,
     "condition":"Excellent",
-    "imageSearchQuery":"Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Gold Etain Bleu Lin Clemence Palladium"
+    "imageSearchQuery":"Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Gold Etain Bleu Lin Clemence & Swift Palladium new"
   },
-  {"rank":2,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":60,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
-  {"rank":3,"brand":"...","model":"...","confidence":50,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":50,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":30,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":40,"alternativeColors":[],"detectedYear":null,"stampLetter":null,"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."}
+  {"rank":2,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":60,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
+  {"rank":3,"brand":"...","model":"...","confidence":50,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":50,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
+  {"rank":4,"brand":"...","model":"...","confidence":30,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":40,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."}
 ]}
 
 IMPORTANT:
 - Always return exactly 4 matches
 - Rank 1: highest confidence identification
-- Rank 2: same model, different construction or color interpretation
-- Rank 3: different model or brand if uncertain
-- Rank 4: least likely but plausible alternative
+- Rank 2: same family but DIFFERENT size (e.g. if rank1 is 25, try 30)
+- Rank 3: different model entirely within same brand (e.g. Kelly instead of Birkin)
+- Rank 4: different brand OR most different plausible interpretation (e.g. simple Birkin)
 - Never repeat same brand+model twice
 - Never leave imageSearchQuery empty'''
 
