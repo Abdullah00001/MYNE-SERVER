@@ -9,7 +9,8 @@ import {
 import UserCollection from '@/modules/userBag/userBag.model';
 import { TDashboardStatsQueryParamsSchema } from '@/modules/dashboard/dashboard.schemas';
 import { TrendEnum } from '@/modules/adminBag/adminBag.types';
-
+import { JwtPayload } from 'jsonwebtoken';
+import { IUser } from '@/modules/auth/auth.types';
 @injectable()
 export class DashboardService {
   async adminDashboardStat({
@@ -255,8 +256,9 @@ export class DashboardService {
     }
   }
 
-  async appDashboardStat(): Promise<AppDashboardStatResult> {
+  async appDashboardStat({user}:{user:IUser}): Promise<AppDashboardStatResult> {
     try {
+      const userId=user._id;
       const now = new Date();
 
       const getDateBefore = (days: number) => {
@@ -267,7 +269,7 @@ export class DashboardService {
 
       // ─── Totals + trend aggregation — only user bags (isAdmin: false) ────────
       const [summary] = await UserCollection.aggregate([
-        { $match: { isArchived: false, isAdmin: false } },
+        { $match: { isArchived: false, isAdmin: false, userId } },
         {
           $group: {
             _id: null,

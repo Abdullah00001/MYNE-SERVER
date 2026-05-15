@@ -4,6 +4,7 @@ import { injectable } from 'tsyringe';
 import { BaseController } from '@/core/base_classes/base.controller';
 import { DashboardService } from '@/modules/dashboard/dashboard.services';
 import { TDashboardStatsQueryParamsSchema } from '@/modules/dashboard/dashboard.schemas';
+import { IUser } from '@/modules/auth/auth.types';
 
 @injectable()
 export class DashboardController extends BaseController {
@@ -31,8 +32,9 @@ export class DashboardController extends BaseController {
     return;
   }
 
-  private async _appDashboardStat(_req: Request, res: Response): Promise<void> {
-    const data=await this.dashboardService.appDashboardStat();
+  private async _appDashboardStat(req: Request, res: Response): Promise<void> {
+    const user =req.user as IUser;
+    const data=await this.dashboardService.appDashboardStat({user});
     res.status(200).json({
       success: true,
       status: 200,
