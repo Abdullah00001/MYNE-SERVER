@@ -2,36 +2,9 @@ import json
 import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
+from app.services.brand_config import get_brand_config
 from datetime import datetime
-from app.services.brand_config import is_investment_piece, is_depreciating
 from typing import List
-
-# ─────────────────────────────────────────
-# CONDITION MULTIPLIERS
-# ─────────────────────────────────────────
-
-CONDITION_MULTIPLIER = {
-    "New":       1.15,
-    "Excellent": 1.00,
-    "Very Good": 0.88,
-    "Good":      0.75,
-    "Fair":      0.60,
-    "Poor":      0.45,
-}
-
-
-def get_special_factor(special_variant: str) -> float:
-    """Smart lookup — works even with free text special_variant."""
-    if not special_variant:
-        return 1.0
-    v = special_variant.lower()
-    if "hss" in v:
-        return 1.80
-    if "bicolor" in v or "bi-color" in v or "two tone" in v:
-        return 1.15
-    if "cargo" in v:
-        return 1.25
-    return 1.00
 
 
 today = datetime.today().strftime("%B %Y")  # e.g. "April 2026"
@@ -89,9 +62,11 @@ async def get_current_price(
     # ── Step 1: Real market data ──────────────────────────
     market = await fetch_all_market_prices(brand, model, size, leather, color, condition, construction, special_variant, image_search_query)
 
-    base_price = market["resale_price"] or 0
     data_points = market["data_points"]
-    needs_gpt = market["needs_gpt_fallback"]
+
+    config = get_brand_config(brand)
+    is_investment = any(m in model.lower()
+                        for m in config["investment_models"])
 
     sources_used = []
     if market["retail_sources"]:
@@ -110,40 +85,7 @@ async def get_current_price(
             "sites": list(set(s["source"] for s in market["ebay_sources"]))
         })
 
-    # ── Step 2: Apply multipliers ─────────────────────────
-    # ── Step 2: Smart multiplier logic ─────────────────────────
-    is_investment = is_investment_piece(brand, model)
-    is_depreciating_brand = is_depreciating(brand)
-
-    condition_factor = CONDITION_MULTIPLIER.get(condition.capitalize(), 1.0)
-    special_factor = get_special_factor(special_variant)
-
-    # Only apply special multiplier for Hermes HSS
-    if "hss" in special_variant.lower() and brand.lower() not in ["hermès", "hermes"]:
-        special_factor = 1.0
-
-    if is_investment:
-        # Investment bags — trust resale price as-is
-        # Only apply special variant multiplier (HSS, Bicolor)
-        adjusted_price = round(base_price * special_factor, 2)
-        pricing_note = "Investment piece — resale price reflects market premium over retail"
-
-    elif is_depreciating_brand:
-        # Depreciating brands — apply full condition multiplier
-        adjusted_price = round(
-            base_price * condition_factor * special_factor, 2)
-        pricing_note = f"Condition ({condition}) and variant ({special_variant}) multipliers applied"
-
-    else:
-        # Unknown brand — apply mild condition adjustment only
-        mild_factor = 1 + (condition_factor - 1) * 0.5  # half the multiplier
-        adjusted_price = round(base_price * mild_factor * special_factor, 2)
-        pricing_note = "Partial condition adjustment applied"
-
-    # ── Step 3: GPT fallback / refinement ────────────────
-    if needs_gpt or adjusted_price == 0:
-
-        prompt = f"""
+    prompt = f"""
 You are a luxury handbag pricing expert. Estimate the current resale market price in EUR for:
 
 Brand: {brand}
@@ -156,56 +98,43 @@ Condition: {condition}
 Construction: {construction}
 Special Variant: {special_variant}
 
-{"The following real market prices were found but are limited: " + str(market) if base_price > 0 else "No real market data was found."}
+Retail prices:   {market["retail_sources"]}
+Reseller prices: {market["reseller_sources"]}
+eBay prices:     {market["ebay_sources"]}
+Total data points: {data_points}
+
+Brand pricing rules:
+- Brand type: {"Investment piece — resale often EXCEEDS retail, do not cap at retail price" if is_investment else "Depreciating brand — resale is typically 40-70% of retail"}
+
+Condition adjustment guide (apply to reseller/eBay prices):
+- New: slight premium over Excellent
+- Excellent: market baseline  
+- Very Good: ~10-15% below Excellent
+- Good: ~20-30% below Excellent
+- Fair: ~35-45% below Excellent
+- Poor: ~50-60% below Excellent
+{"Note: for investment brands, condition affects price much less than for regular brands." if is_investment else ""}
+
+Source trust order:
+1. Reseller prices = most trusted (authenticated secondhand)
+2. eBay prices = less trusted (mix of authenticated and private sellers)  
+3. Retail prices = new from boutique, NOT resale value
 
 Return ONLY a JSON object with these fields:
     - current_value: number (EUR)
     - currency: "EUR"
     - confidence: "low" | "medium" | "high"
-    - trend: "appreciating" | "depreciating" | "stable"
+    - trend: "up" | "down" | "stable"
     - change_percentage: number (estimated % change over last 12 months)
     - price_range: object with min and max (EUR)
     - retail_price: number (EUR, new from boutique)
-    - resale_premium: number (% premium over retail, can be negative)
     - color_premium: boolean
         """
-        result = await call_gpt(prompt)
-        result["sources_used"] = sources_used or ["GPT-4o estimate"]
-        result["data_points"] = data_points
-        return result
+    result = await call_gpt(prompt)
+    result["sources_used"] = sources_used or ["GPT-4o estimate"]
+    result["data_points"] = data_points
+    return result
 
-    # ── Real data was sufficient — return directly ────────
-    retail_price = market["retail_price"]
-
-    # Blend retail + resale when data is sparse
-    if data_points >= 6:
-        current_value = adjusted_price
-    elif data_points >= 3:
-        if retail_price:
-            current_value = round((retail_price + adjusted_price) / 2, 2)
-        else:
-            current_value = adjusted_price
-    else:
-        current_value = retail_price or adjusted_price
-
-    # Resale premium
-    if retail_price and adjusted_price:
-        resale_premium = round(
-            ((adjusted_price - retail_price) / retail_price) * 100, 2)
-    else:
-        resale_premium = None
-
-    return {
-        "current_value": current_value,
-        "currency": "EUR",
-        "confidence": "high" if data_points >= 6 else "medium" if data_points >= 3 else "low",
-        "change_percentage": 0.0,
-        "price_range": {"min": round(current_value * 0.9, 2), "max": round(current_value * 1.1, 2)},
-        "retail_price": retail_price,
-        "resale_premium": resale_premium,
-        "sources_used": sources_used,
-        "data_points": data_points,
-    }
 
 # ─────────────────────────────────────────
 # PRICE HISTORY (last 10 months)
@@ -243,7 +172,7 @@ async def get_price_history(
     Size: {size}
     Current Price (today): {current_price} EUR
 
-    Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month).
+    Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month) anchored to current_price..
     The history MUST start from April 2025 and end at March 2026. Do not use any other date range.
     The prices should reflect real luxury market behavior:
     - Gradual appreciation or depreciation trends (not random jumps)
