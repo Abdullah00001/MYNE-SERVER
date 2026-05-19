@@ -109,11 +109,11 @@ IDENTIFICATION RULES:
 - detectedConstruction:
   "Sellier" = stitching is VISIBLE on the OUTSIDE edge of the bag, sharp corners, rigid structured silhouette
   "Retourne" = NO visible stitching on outer edge, soft/rounded corners, slight slouch
-  When uncertain between the two, examine the corner shape — sharp = Sellier, rounded = Retourne
+  When uncertain between the two, examine the corner shape — sharp = Sellier, rounded = Retourne (these are only for Hermès, other brands may have different construction but use same terms if similar)
   null only if construction is genuinely not applicable
 - detectedSize: integer only. Estimate from proportions if not visible.
 - colorAccuracy: 0-100 confidence in color detection
-- alternativeColors: 2-3 alternatives if uncertain, [] if certain
+- alternativeColors: list as many colors as relevant from the SAME color family as the main body color (first item in detectedColors). e.g. if "Rouge H" → ["Rouge Casaque", "Rouge Vif", "Vermillon", "Capucine", "Rouge Tomate", "Brique"]. Always populate this, even if confident.
 - editionName: named edition if identifiable e.g. "Arlequin", "So Black", "Cargo", "Shadow", "Faubourg"
 
 FLAG RULES:
