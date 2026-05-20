@@ -46,6 +46,7 @@ export interface IUserBag {
   priceStatus: TAdminBagPriceStatus;
   wearChecklist: string[];
   // productionYear: number;
+  yearsOfBag:string;
   condition: string;
   purchasePrice: number;
   sellerName: string;

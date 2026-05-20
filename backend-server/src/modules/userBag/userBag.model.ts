@@ -94,6 +94,7 @@ const UserCollectionSchema = new Schema<IUserBag>(
     size: { type: String, required: true },
     priceStatus: { type: PriceStatusSchema, default: null },
     // productionYear: { type: Number, required: true },
+    yearsOfBag: { type: String, default: null },
     variant: { type: String, required: true },
     condition: { type: String, default: null },
     purchasePrice: { type: Number, default: null },

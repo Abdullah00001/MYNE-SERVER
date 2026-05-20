@@ -12,7 +12,7 @@ export const CreateCollectionSchema = z.object({
     .refine((val) => isValidObjectId(val), {
       message: 'Invalid Brand ID format',
     }),
-
+  yearsOfBag: z.string().nullable(),
   modelId: z
     .string({
       error: 'Model ID is required',
@@ -180,7 +180,7 @@ export const baseUpdateSchema = z.object({
     .refine((val) => isValidObjectId(val), {
       message: 'Invalid Model ID format',
     }),
-
+  yearsOfBag: z.string().nullable(),
   // Bag properties
   bagColor: z
     .string({
@@ -494,7 +494,7 @@ export const createBagStepOneSchema = z.object({
     .min(1, {
       error: 'Size cannot be empty',
     }),
-
+  yearsOfBag: z.string().nullable(),
   // Production year - COERCED from string to number for form-data
   // productionYear: z.coerce
   //   .number({
@@ -533,7 +533,7 @@ export const createBagStepOneSchema = z.object({
       error: 'Condition cannot be empty',
     }),
   specialVariant: z.string().nullable(),
-  imageSearchQuery:string().nullable(),
+  imageSearchQuery: string().nullable(),
 });
 
 export type TCreateBagStepOne = z.infer<typeof createBagStepOneSchema>;
