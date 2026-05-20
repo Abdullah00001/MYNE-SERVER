@@ -34,7 +34,12 @@ def extract_price(text) -> float | None:
         return None
 
 
-def detect_currency_symbol(text: str) -> str:
+def detect_currency_symbol(text) -> str:
+    if text is None:
+        return "€"
+ 
+    text = str(text)  # 🔥 normalize everything to string
+ 
     if "$" in text or "USD" in text:
         return "$"
     if "£" in text or "GBP" in text:
@@ -43,6 +48,7 @@ def detect_currency_symbol(text: str) -> str:
         return "€"
     if "¥" in text or "JPY" in text or "CNY" in text:
         return "¥"
+ 
     return "€"
 
 # ─────────────────────────────────────────
