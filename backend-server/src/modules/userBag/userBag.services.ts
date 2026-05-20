@@ -118,6 +118,7 @@ export class UserBagService {
         specialVariant,
         variant,
         wearChecklist,
+        yearsOfBag
       } = payload;
       const brand = await Brand.findOne({ _id: brandId });
       if (!brand) throw new Error('Brand Not Found');
@@ -135,6 +136,7 @@ export class UserBagService {
         variant,
         wearChecklist,
         imageSearchQuery,
+        yearsOfBag,
       };
       if (!imageSearchQuery) {
         payloadWithImage.imageSearchQuery =
@@ -183,6 +185,7 @@ export class UserBagService {
       specialVariant,
       variant,
       wearChecklist,
+      yearsOfBag
     } = payload;
     const brand = await Brand.findOne({ _id: brandId });
     if (!brand) throw new Error('Brand Not Found');
@@ -200,6 +203,7 @@ export class UserBagService {
       variant,
       wearChecklist,
       imageSearchQuery,
+      yearsOfBag,
     };
     console.log(bagColor);
     if (!imageSearchQuery) {
