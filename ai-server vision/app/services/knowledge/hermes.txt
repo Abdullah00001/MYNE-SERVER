@@ -1,0 +1,183 @@
+=== HERMES ===
+
+--- MODELS & KEY IDENTIFIERS ---
+
+BIRKIN (25/30/35/40):
+- Two top handles
+- Two leather straps with metal padlock closure
+- No shoulder strap
+- Flap closure with turnstile lock
+- Trapezoidal shape, structured base
+- Most iconic Hermes bag
+- Size guide: 25=small, 30=medium most popular, 35=large, 40=very large
+- Confused with: Kelly — KEY DIFFERENCE: Birkin has TWO handles + padlock. Kelly has ONE handle + turn-lock clasp.
+- Special editions: Birkin Shadow (embossed shadow effect), Birkin Faubourg (building facade design)
+
+KELLY (20/25/28/32/35):
+- Single top handle
+- Turn-lock (Hermes clasp) closure
+- Trapezoid shape
+- Can be Sellier (rigid, outside stitching) or Retourne (soft, inside stitching)
+- Has shoulder strap
+- Size guide: 20=mini, 25=small, 28=medium, 32=large, 35=XL
+- Sellier: structured, sharp corners, stitching visible on outside
+- Retourne: soft, rounded corners, stitching on inside
+- Confused with: Birkin — KEY DIFFERENCE: Kelly has ONE handle + turn-lock. Birkin has TWO handles + padlock.
+- Special editions: Kelly Picnic (Osier wicker), Kelly Idole, Kelly Cut (flat clutch version)
+
+MINI KELLY II (20):
+- Same as Kelly but always 20cm
+- Always Sellier construction
+- Second generation (II) has slightly different strap detail
+- Very high resale value due to rarity and size
+
+KELLY POCHETTE:
+- Clutch version of Kelly
+- No top handle
+- Same turn-lock closure as Kelly
+- Carried by hand or tucked under arm
+- Often comes in exotic leathers
+
+KELLY DANSE:
+- Small Kelly shape worn crossbody
+- Has exterior back pocket
+- Casual sporty version of Kelly
+
+KELLY ADO:
+- Backpack version of Kelly
+- Same Kelly silhouette but worn as backpack
+- Rare and highly collectible
+
+CONSTANCE (18/24):
+- Single shoulder/crossbody bag
+- Distinctive H-clasp closure on front — most important identifier
+- Single flap, clean minimal profile
+- Size: 18=small, 24=medium
+- Slim/Elan version: longer and narrower
+- Confused with: Evelyne — KEY DIFFERENCE: Constance has H-clasp flap closure. Evelyne has perforated H and is open top.
+
+JYPSIERE (28/31/34):
+- FRONT BUCKLE STRAP across body — most important identifier
+- Exterior front pocket
+- Structured flat base, single shoulder strap
+- Size: 28=small, 31=medium, 34=large
+- Confused with: Halzan — KEY DIFFERENCE: Jypsiere has BUCKLE on front strap + front pocket. Halzan has wrap/tie strap, no buckle, no pocket.
+
+HALZAN (25/31):
+- Wrap/tie strap — no buckle
+- No front exterior pocket
+- Relaxed, slouchy shape, double wrap handle
+- Size: 25=small, 31=large
+- Confused with: Jypsiere — KEY DIFFERENCE: Halzan has wrap tie strap, NO buckle, NO front pocket. Jypsiere has buckle + pocket.
+
+LINDY (26/30):
+- Double top handles, open top (no closure)
+- Two interior compartments, can be shoulder bag
+- Relaxed shape. Size: 26=small, 30=large. Mini Lindy also exists (20cm)
+
+PICOTIN (18/22):
+- Bucket shape, open top, two small top handles
+- Simple casual style. Size: 18=small, 22=large
+- Lock versions have a padlock on handle
+
+EVELYNE (TPM/PM/GM):
+- Perforated H logo on back panel — most important identifier
+- Single crossbody strap, open top, no closure, casual sporty style
+- Size: TPM=tiny, PM=small, GM=large
+- Confused with: Constance — KEY DIFFERENCE: Evelyne has perforated H + open top. Constance has H-clasp flap closure.
+
+BOLIDE (27/31/45):
+- Rounded rectangular shape with zip closure on top — distinctive
+- Single or double handles, shoulder strap
+- Doctor bag silhouette, one of oldest Hermes designs
+
+GARDEN PARTY (30/36):
+- Tote style, canvas + leather trim (Toile/Leather combo common)
+- Open top, casual everyday bag. TPM version also exists.
+
+HERBAG (31/39):
+- Canvas body with leather trim
+- Removable interior pouch, casual interchangeable style
+- Often two-tone canvas + leather
+
+ROULIS (18/23/29):
+- Small structured flap bag with distinctive curved flap shape
+- Ring closure hardware, shoulder/crossbody strap
+
+VERROU (15/21):
+- Very structured rectangular shape
+- Bolt/verrou closure hardware, evening/formal bag, rare and collectible
+
+--- LEATHERS ---
+
+Togo: pebbled grain, soft, scratch resistant, most popular, matte finish, holds shape. Most common for Birkin and Kelly.
+Clemence: loose pebbled grain (larger than Togo), softer and more relaxed, matte, slouches more. TOGO vs CLEMENCE: Togo more structured tighter grain. Clemence softer looser grain.
+Epsom: fine cross-hatch embossed pattern (very distinctive), structured, rigid, holds shape best, lighter weight, scratch resistant. EPSOM vs TOGO: Epsom has geometric cross-hatch. Togo has natural round pebbles.
+Swift: smooth very fine grain, lightweight, soft, shows scratches easily, vibrant color. SWIFT vs BOX CALF: Swift has slight grain. Box Calf completely smooth and shinier.
+Box Calf: completely smooth, shiny almost patent-like, classic vintage aesthetic, shows scratches, develops patina, stiffer than Swift.
+Barenia: smooth natural tan leather, darkens with use and sun exposure, ages beautifully, natural feel. Barenia Faubourg is updated more durable version.
+Chevre Mysore: fine tight grain from goatskin, very lightweight, extremely durable, slightly shiny, holds embossing very well.
+Chevre de Coromandel: goatskin with more pronounced grain than Mysore, very durable.
+Veau Madame: fine grain calfskin, similar to Epsom but softer, structured but not as rigid.
+Evercolor: fine pebbled grain, very scratch resistant, consistent texture, popular for Constance and accessories.
+Hunter: smooth leather with natural finish, develops rich patina, similar to Barenia.
+Niloticus Crocodile: EXOTIC, rectangular symmetrical scales, largest scales, Nile crocodile, very high value (+300-1000%). NILOTICUS vs POROSUS: Niloticus has larger rectangular scales.
+Porosus Crocodile: EXOTIC, smaller more irregular scales than Niloticus, saltwater crocodile, most prestigious crocodile, highest value.
+Ostrich: EXOTIC, distinctive follicle bumps/quill marks visible, soft and durable, center cut has raised quill pattern, very high value.
+Lizard: EXOTIC, small tight rectangular scales, shiny surface, delicate, very high value.
+Python: EXOTIC, overlapping scale pattern, distinctive diamond/oval scale shapes, matte or shiny.
+Toile: canvas fabric (not leather), often combined with leather trim, H pattern canvas most iconic.
+
+--- HARDWARE ---
+- Gold Hardware (GHW): warm yellow gold tone
+- Palladium Hardware (PHW): cool silver tone — most common
+- Brushed Gold Hardware (BGHW): matte brushed gold finish
+- Ruthenium Hardware (RHW): dark gunmetal/charcoal tone
+- Permabrass Hardware (PBHW): aged warm brass tone
+- Black Hardware (BHW): matte black — rare, special order only
+- Rose Gold Hardware: warm pink gold tone — rare
+
+--- COLORS (Official Hermes Names) ---
+
+Neutrals: Noir (true flat black), Blanc (pure white), Craie (chalk white warm), Nata (cream off-white), Beton (concrete cool grey), Gris Perle (pearl grey very light), Gris Tourterelle (dove grey medium warm), Etain (tin/pewter darker cool grey), Etoupe (warm taupe/greige — most popular neutral), Gris Meyer (medium cool grey), Parchemin (parchment warm off-white), Argile (clay warm light grey)
+
+Browns: Gold (warm honey caramel — classic neutral), Fauve (fawn/tan warm medium brown), Caramel (warm caramel), Havane (tobacco warm brown), Marron Fonce (dark chocolate), Cafe (coffee medium brown), Chocolat (dark chocolate), Tabac (tobacco dark warm), Noisette (hazelnut light warm), Naturel (natural tan), Terre (earth warm terracotta-brown), Cuivre (copper warm metallic)
+
+Blues: Bleu Nuit (dark navy with COOL BLUE UNDERTONE — COMMONLY CONFUSED WITH NOIR), Bleu Indigo (deep indigo blue-purple), Bleu Marine (classic navy), Bleu de Prusse (Prussian deep rich blue), Bleu Saphir (sapphire vivid medium blue), Bleu Electrique (electric bright blue), Bleu Zanzibar (deep teal-blue), Bleu Atoll (bright turquoise blue), Bleu Brume (misty hazy light blue), Bleu Lin (linen muted light blue), Bleu Celeste (sky blue light), Bleu Encre (ink blue deep blue-purple DARKER than Indigo), Bleu Brighton (medium cornflower blue), Bleu Tempete (storm muted medium blue), Bleu Colvert (teal duck blue), Bleu Agate (agate medium vivid)
+NOTE: Bleu Nuit vs Noir — Bleu Nuit has visible BLUE undertone especially in natural light. Noir is completely FLAT BLACK with NO undertone.
+NOTE: Bleu Encre vs Bleu Indigo — Bleu Encre is darker and more purple-toned. Bleu Indigo is slightly brighter.
+
+Purples: Ultra Violet (bright vivid purple), Amethyste (amethyst slightly cooler), Raisin (deep grape purple), Mauve Sylvestre (muted dusty mauve), Lilas (soft lilac), Cassis (blackcurrant very dark purple), Crocus (medium purple warmer), Iris (blue-purple cooler), Parme (soft lavender)
+
+Greens: Vert Anglais (British racing deep classic green), Vert Cypress (cypress muted olive-green), Vert Criquet (cricket medium khaki green), Vert Jade (jade medium cool green), Vert Veronese (vivid bright green), Vert Foret (forest dark green), Vert Anis (anise/lime bright yellow-green), Vert Chartreuse (chartreuse yellow-green), Vert Olive (olive green), Vert Titien (Titian deep muted green), Vert Mousse (moss earthy green), Canopee (canopy bright medium green)
+
+Reds/Pinks: Rouge H (deep burgundy red — CLASSIC HERMES RED), Rouge Casaque (bright true red), Rouge de Coeur (heart red vivid), Rouge Tomate (tomato bright orange-red), Bordeaux (deep wine/burgundy), Brique (brick red terracotta), Rose Sakura (soft cherry blossom pink), Rose Azalee (bright hot pink), Rose Confetti (light bubblegum pink), Rose Pourpre (deep rose-purple), Rubis (ruby deep vivid red), Rouge Grenat (garnet deep dark red), Vermillon (vermillion bright orange-red), Rose Extreme (extreme vivid pink), Corail (coral warm orange-pink), Bois de Rose (rose wood dusty muted pink)
+
+Yellows/Oranges: Jaune Ambre (amber warm yellow), Jaune Poussin (chick yellow bright), Jaune Citron (lemon yellow), Orange (CLASSIC HERMES ORANGE — signature brand color), Sanguine (blood orange deep orange-red), Abricot (apricot soft orange), Jaune de Naples (Naples golden yellow), Potiron (pumpkin warm deep orange), Mandarine (mandarin bright orange), Miel (honey warm golden yellow)
+
+--- SPECIAL CLASSIFICATIONS ---
+
+HSS (Horseshoe Stamp Special Order):
+- MUST have BOTH: two-tone leather body AND contrasting stitching color
+- If stitching matches body = NOT HSS. Value: +50-150% to base price.
+- Known combos: Noir/Gold stitching, Etoupe/Rouge H stitching, Bleu Nuit/Gold stitching, Craie/Noir stitching
+- JSON: isBiColor=true, isHSS=true, secondaryColor=stitching color
+- specialNotes: "HSS: [body color] with [stitching color] stitching"
+
+Verso: Interior flap different color from exterior. Must see open flap to confirm.
+Known combos: Noir/Rouge H, Etoupe/Bleu, Gold/Rouge H
+JSON: specialNotes: "Verso: [exterior color]/[interior color]"
+
+Bi-color: Two distinct color panels. Check handles/trim vs body. Even subtle differences count.
+JSON: isBiColor=true, detectedColor=primary, secondaryColor=secondary
+specialNotes: "Bi-color: [color1]/[color2]"
+
+Tri-color: Three distinct color panels. Very rare.
+JSON: isTriColor=true, detectedColor=primary, secondaryColor=secondary, tertiaryColor=third
+specialNotes: "Tri-color: [color1]/[color2]/[color3]"
+
+Special Order (SO): Any non-standard configuration, unusual color/leather/hardware, exotic on standard model. Value: +30-200%
+
+Faubourg Special Edition: Features Hermes Faubourg building facade embossed or printed. Very rare, very high value.
+Shadow Editions: Embossed shadow of bag silhouette on leather. Tonal subtle effect. Special Order classification.
+

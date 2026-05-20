@@ -57,7 +57,7 @@ class BagMatch(BaseModel):
     model: str
     confidence: int = Field(default=0, ge=0, le=100)
     confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
-    estimatedPriceEUR: int = Field(default=0, ge=0)
+    estimatedValueEUR: int = Field(default=0, ge=0)
     detectedVariant: Optional[str] = None
     detectedColor: str
     detectedLeather: str
@@ -67,7 +67,6 @@ class BagMatch(BaseModel):
     alternativeColors: List[str] = []
     detectedYear: Optional[str] = None
     stampLetter: Optional[str] = None
-    specialNotes: str
     specialNotes: str = Field(default="")
     isSpecialOrder: bool = Field(default=False)
     isExotic: bool = Field(default=False)
@@ -123,18 +122,14 @@ RULES:
 
 Return ONLY this JSON shape:
 {"matches":[
-  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedPriceEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
+  {"rank":1,"brand":"Hermès","model":"Mini Kelly II Bi Color","confidence":93,"confidenceLabel":"High","estimatedValueEUR":28000,"detectedVariant":"Sellier","detectedColor":"Ultra Violet","detectedLeather":"Epsom","detectedHardware":"Palladium","detectedSize":"20","colorAccuracy":87,"alternativeColors":[
       "Bleu Nuit","Bleu Indigo"],"detectedYear":"2022-2023","stampLetter":"Z","specialNotes":"Standard","isSpecialOrder":false,"isExotic":false,"isBiColor":true,"isTriColor":false,"isHSS":false,"secondaryColor":"Bleu Encre","tertiaryColor":null,"condition":"New","analysis":"Brief expert description.","imageSearchQuery":"Hermès Mini Kelly II 20 Sellier HSS Bi color Ultra Violet and Bleu Encre Epsom Palladium "},
-  {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedPriceEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
-  {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedPriceEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedPriceEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery ":"..."}
+  {"rank":2,"brand":"...","model":"...","confidence":85,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":78,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
+  {"rank":3,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":75,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery":"..."},
+  {"rank":4,"brand":"...","model":"...","confidence":60,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedVariant":"...","detectedColor":"...","detectedLeather":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":71,"alternativeColors":["...","..."],"detectedYear":"...","stampLetter":null,"specialNotes":"...","isSpecialOrder":false,"isExotic":false,"isBiColor":false,"isTriColor":false,"isHSS":false,"secondaryColor":null,"tertiaryColor":null,"condition":"...","analysis":"...","imageSearchQuery ":"..."}
+]}
 
-IMPORTANT: 4 matches always. ]}'''
-
-# PROMPT = '''Extract product attributes from the bag photo. Return ONLY this JSON:
-# {"matches":[
-#   {"rank":1,"brand":"","model":"","confidence":0,"detectedColor":"","detectedLeather":"","detectedSize":"","condition":"","analysis":""}
-# ]}'''
+IMPORTANT: 4 matches always. Fill ALL fields with real detected values. Never use "..." as a value.'''
 
 
 async def detect_brand(photos: List[str], photo_mimes: List[str]) -> str:
@@ -209,14 +204,10 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
     base = KNOWLEDGE.get("_base", "")
     brand_knowledge = KNOWLEDGE.get(brand_key, "")
     full_knowledge = base + "\n\n" + brand_knowledge if brand_knowledge else base
-    logger.info(
-        f"Knowledge loaded: base={bool(base)}, brand={bool(brand_knowledge)}")
-    # full_knowledge = "Use your general knowledge about luxury bags."
+    # full_knowledge = ""
 
-    # full_knowledge = ""  # only base, no brand knowledge
     logger.info(
         f"Knowledge loaded: base={bool(base)}, brand={bool(brand_knowledge)}")
-    logger.info(f"Full knowledge preview: {full_knowledge[:300]}")
 
     # STEP 3: Build prompt + images
     image_content = [

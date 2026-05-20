@@ -1,0 +1,90 @@
+=== PHOTO DETECTION RULES ===
+- Single front photo: can detect model, leather, color, hardware, size, variant
+- Multiple angles needed for: bi-color, tri-color, HSS stitching, stamp letter, verso interior
+- Stamp letter: embossed inside bag near base or under flap — only visible from interior photo
+- HSS stitching: tiny detail, requires closeup — if not clearly visible assume standard
+- Bi-color second panel: usually on back, sides, handles, or trim — may be invisible from front alone
+- When uncertain due to single/poor photo: note in analysis field, do not guess special classifications
+
+BI-COLOR DETECTION RULES:
+- Bi-color does NOT require high contrast. Even similar shades count (e.g. Ultra Violet body + Bleu Encre trim)
+- Key areas to check: handles, trim, piping, interior flap, clochette, straps vs body
+- If handles/trim are visibly different shade from body = isBiColor: true
+- Common subtle bi-color combos: Etoupe + Gold trim, Noir + Rouge H trim, similar purple shades, Bleu + Navy
+- Do NOT require the two colors to be obviously different — compare handles vs body specifically
+- If only front photo: check handles and visible trim carefully before assuming single color
+- Common known bi-color combinations: Noir/Gold, Etoupe/Gold, Bleu Indigo/Bleu Nuit, Craie/Gold, Rouge H/Noir, Vert Anglais/Gold, Ultra Violet/Bleu Encre
+
+HSS DETECTION RULES:
+- MUST have BOTH: two-tone leather body AND contrasting stitching color
+- If stitching matches body color = NOT HSS
+- Stitching color is tiny — requires closeup photo to confirm
+- If no closeup provided, do not assume HSS
+- Common HSS combos: Noir body + Gold stitching, Etoupe body + Rouge H stitching, Bleu Nuit + Gold stitching, Craie + Noir stitching
+- HSS always increases value +50-150%
+
+VERSO DETECTION RULES:
+- Verso = interior flap is different color from exterior
+- Only detectable if flap is open in photo showing interior
+- Cannot be confirmed from closed bag photo — do not guess
+- Common Verso combos: Noir exterior + Rouge H interior, Etoupe exterior + Bleu interior
+
+STAMP LETTER RULES:
+- Only applicable to Hermes bags
+- Location: blind stamped inside bag, near base gusset or under flap
+- Requires interior photo under good lighting
+- If no interior photo: always return "Not visible"
+- Do not guess stamp letter from exterior photo
+
+=== ALL BRANDS ===
+
+--- HARDWARE VALUES ---
+"Gold", "Silver", "Palladium", "Ruthenium", "Antique Gold", "Rose Gold", "Black", "Brass", "Aged Gold"
+
+--- CONDITION VALUES ---
+- New: unworn, box fresh, all tags/accessories present, no signs of use
+- Excellent: minimal use, barely visible wear, hardware pristine
+- Very Good: light use, minor marks only, hardware mostly clean
+- Good: moderate use, visible wear on corners/hardware, some marks
+- Fair: heavy use, significant wear, hardware scratched, visible marks
+
+--- ACCESSORIES THAT ADD VALUE ---
+- Dustbag: +5%, Box: +5%, Receipt/Invoice: +10%
+- Clochette (Hermes): +5%, Lock + Keys (Hermes): +10%, Rain cover (Hermes): +3%
+- Brand card (Chanel): +5%, Full set all accessories: +20-30% total
+
+--- COMMON CONFUSION PAIRS ---
+- Hermes Birkin vs Kelly: TWO handles + padlock (Birkin) vs ONE handle + turn-lock (Kelly)
+- Hermes Kelly vs Constance: trapezoid + turn-lock (Kelly) vs flat + H-clasp (Constance)
+- Hermes Jypsiere vs Halzan: front buckle + pocket (Jypsiere) vs wrap strap no buckle (Halzan)
+- Hermes Constance vs Evelyne: H-clasp flap (Constance) vs perforated H open top (Evelyne)
+- Hermes Bolide vs Kelly: zip top (Bolide) vs turn-lock flap (Kelly)
+- Chanel Classic Flap vs 2.55: CC turn-lock (Classic) vs Mademoiselle rectangular lock (2.55)
+- Chanel Classic vs Boy: thin chain + CC lock (Classic) vs chunky chain + push clasp (Boy)
+- Loewe Puzzle: puzzle geometric panels are unique — no confusion once identified
+- Fendi Baguette: narrow elongated shape worn under arm is unique
+- Gucci Jackie vs Marmont: piston clasp + hobo (Jackie) vs GG quilting + chain (Marmont)
+- Bleu Nuit vs Noir: BLUE UNDERTONE visible in light (Bleu Nuit) vs FLAT BLACK no undertone (Noir)
+- Bleu Encre vs Bleu Indigo: Encre is darker/more purple. Indigo is slightly brighter.
+- Togo vs Clemence: tighter structured grain (Togo) vs looser softer grain (Clemence)
+- Epsom vs Togo: cross-hatch embossed geometric (Epsom) vs natural round pebbles (Togo)
+- Swift vs Box Calf: Swift has fine grain. Box Calf completely smooth and shinier.
+- Saffiano (Prada) vs Epsom (Hermes): both cross-hatch but Saffiano coarser/more pronounced
+
+--- BRAND IDENTIFICATION MARKERS ---
+- Hermes: "Hermes Paris Made in France" embossed, blind stamp letter inside, H hardware
+- Chanel: CC logo, serial sticker or NFC chip, interlocked CC hardware
+- Louis Vuitton: LV monogram, date code, "Louis Vuitton Paris Made in France"
+- Dior: "Christian Dior" embossed, serial number inside, CD hardware
+- Bottega Veneta: NO visible logo (anti-logo brand), quality of Intrecciato weave is identifier
+- Prada: triangle logo enamel plaque, "PRADA" lettering, serial number inside
+- Miu Miu: "MIU MIU" lettering hardware, washed nappa leather signature
+- Saint Laurent: "Saint Laurent Paris" embossed, YSL hardware
+- Celine: "CELINE PARIS" embossed, no accents on modern bags (Hedi Slimane era)
+- Gucci: GG hardware, web stripe, "Gucci" lettering, serial number
+- Loewe: Anagram logo, "LOEWE" lettering, extremely high quality leather
+- Fendi: FF logo, "FENDI ROMA" embossed
+- Valentino: "VALENTINO GARAVANI" embossed, V logo hardware
+- Balenciaga: "BALENCIAGA" lettering, City bag whipstitch trim
+- Givenchy: "GIVENCHY PARIS" embossed, 4G hardware
+- Burberry: TB hardware, House Check lining

@@ -10,120 +10,140 @@ BRAND_CONFIG = {
         "investment_models": {"birkin", "kelly", "constance", "lindy", "picotin", "bolide", "evelyne"},
         "depreciates": False,
         "knowledge_file": "hermes",
+        "min_resale_price": 8000,   # for undershoot correction in price_service
     },
     "hermes": {
         "official_site": None,
         "investment_models": {"birkin", "kelly", "constance", "lindy", "picotin", "bolide", "evelyne"},
         "depreciates": False,
         "knowledge_file": "hermes",
+        "min_resale_price": 8000,   # for undershoot correction in price_service
     },
     "chanel": {
         "official_site": "chanel.com",
         "investment_models": {"classic flap", "2.55", "boy bag"},
         "depreciates": False,
         "knowledge_file": "chanel",
+        "min_resale_price": 4000,   # for undershoot correction in price_service
     },
     "louis vuitton": {
         "official_site": "louisvuitton.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "louis_vuitton",
+        "min_resale_price": 1800,
     },
     "dior": {
         "official_site": "dior.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "dior",
+        "min_resale_price": 3000,
     },
     "gucci": {
         "official_site": "gucci.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "gucci",
+        "min_resale_price": 1200,
     },
     "prada": {
         "official_site": "prada.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "prada",
+        "min_resale_price": 1200,
     },
     "bottega veneta": {
         "official_site": "bottegaveneta.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "bottega_veneta",
+        "min_resale_price": 2200,
     },
     "saint laurent": {
         "official_site": "ysl.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "saint_laurent",
+        "min_resale_price": 1400,
     },
     "celine": {
         "official_site": "celine.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "celine",
+        "min_resale_price": 1800,
     },
     "céline": {
         "official_site": "celine.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "celine",
+        "min_resale_price": 1800,
     },
     "loewe": {
         "official_site": "loewe.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "loewe",
+        "min_resale_price": 1800,
     },
     "fendi": {
         "official_site": "fendi.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "fendi",
+        "min_resale_price": 1800,
     },
     "balenciaga": {
         "official_site": "balenciaga.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "balenciaga",
+        "min_resale_price": 1000,
     },
     "givenchy": {
         "official_site": "givenchy.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "givenchy",
+        "min_resale_price": 1000,
     },
     "burberry": {
         "official_site": "burberry.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "burberry",
+        "min_resale_price": 800,
     },
     "valentino": {
         "official_site": "valentino.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "valentino",
+        "min_resale_price": 1400,
     },
     "miu miu": {
         "official_site": "miumiu.com",
         "investment_models": set(),
         "depreciates": True,
         "knowledge_file": "miu_miu",
+        "min_resale_price": 1200,
     },
     "goyard": {
         "official_site": None,
         "investment_models": {"saint louis", "artois"},
         "depreciates": False,
         "knowledge_file": "goyard",
+        "min_resale_price": 3500,
     },
     "moynat": {
         "official_site": None,
         "investment_models": set(),
         "depreciates": False,
         "knowledge_file": "moynat",
+        "min_resale_price": 3500,
     },
 }
 
@@ -145,7 +165,7 @@ def get_brand_config(brand: str) -> dict:
         "official_site": None,
         "investment_models": set(),
         "depreciates": False,   # unknown = mild multiplier
-        "knowledge_file": "unknown",
+        "knowledge_file": "300",
     }
 
 

@@ -1,8 +1,12 @@
+import re
 import json
+from turtle import title
 import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
+from app.services.serp_service_copy import fetch_prices_from_image
 from app.services.brand_config import get_brand_config
+
 from datetime import datetime
 from typing import List
 
@@ -24,7 +28,7 @@ async def call_gpt(prompt: str, max_tokens: int = 800) -> dict:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o",
+                "model": "gpt-4o-mini",
                 "max_tokens": max_tokens,
                 "temperature": 0.1,
                 "response_format": {"type": "json_object"},
@@ -50,24 +54,20 @@ async def get_current_price(
     size: str,
     condition: str,
     special_variant: str = "",
-    image_search_query: str = "",   # ← add this
+    image_search_query: str = "",
 ) -> dict:
-    """
-    Step 1: Fetch real market data from all sources.
-    Step 2: Apply condition + special variant multipliers.
-    Step 3: GPT refines ONLY if real data is thin (< 4 points).
-    Returns: current_price (EUR), confidence, sources_used, reasoning.
-    """
 
-    # ── Step 1: Real market data ──────────────────────────
+    # ── Step 1: Real market data ──
     market = await fetch_all_market_prices(brand, model, size, leather, color, condition, construction, special_variant, image_search_query)
 
+    resale_price = market["resale_price"]
     data_points = market["data_points"]
 
     config = get_brand_config(brand)
     is_investment = any(m in model.lower()
                         for m in config["investment_models"])
 
+    # Build sources_used
     sources_used = []
     if market["retail_sources"]:
         sources_used.append({
@@ -85,6 +85,7 @@ async def get_current_price(
             "sites": list(set(s["source"] for s in market["ebay_sources"]))
         })
 
+    # ── Step 2: GPT estimates final value ──
     prompt = f"""
 You are a luxury handbag pricing expert. Estimate the current resale market price in EUR for:
 
@@ -106,33 +107,48 @@ Total data points: {data_points}
 Brand pricing rules:
 - Brand type: {"Investment piece — resale often EXCEEDS retail, do not cap at retail price" if is_investment else "Depreciating brand — resale is typically 40-70% of retail"}
 
-Condition adjustment guide (apply to reseller/eBay prices):
+Condition adjustment guide:
 - New: slight premium over Excellent
 - Excellent: market baseline  
 - Very Good: ~10-15% below Excellent
 - Good: ~20-30% below Excellent
 - Fair: ~35-45% below Excellent
 - Poor: ~50-60% below Excellent
-{"Note: for investment brands, condition affects price much less than for regular brands." if is_investment else ""}
+{"Note: for investment brands, condition affects price much less." if is_investment else ""}
 
 Source trust order:
-1. Reseller prices = most trusted (authenticated secondhand)
-2. eBay prices = less trusted (mix of authenticated and private sellers)  
+1. Reseller prices = most trusted
+2. eBay prices = less trusted
 3. Retail prices = new from boutique, NOT resale value
 
-Return ONLY a JSON object with these fields:
+Return ONLY a JSON object:
     - current_value: number (EUR)
     - currency: "EUR"
     - confidence: "low" | "medium" | "high"
     - trend: "up" | "down" | "stable"
-    - change_percentage: number (estimated % change over last 12 months)
+    - change_percentage: number
     - price_range: object with min and max (EUR)
-    - retail_price: number (EUR, new from boutique)
+    - retail_price: number (EUR)
     - color_premium: boolean
-        """
+    """
+
     result = await call_gpt(prompt)
+
+    # Override if GPT undershoots real market data
+    if is_investment and resale_price:
+        if (result.get("current_value") or 0) < resale_price * 0.92:
+            result["current_value"] = resale_price
+            result["confidence"] = "medium"
+            print(
+                f"[get_current_price] GPT undershot — overriding with resale median: {resale_price}")
+
     result["sources_used"] = sources_used or ["GPT-4o estimate"]
     result["data_points"] = data_points
+    result["market_sources"] = {
+        "retail": market["retail_sources"],
+        "resellers": market["reseller_sources"],
+        "ebay": market["ebay_sources"],
+    }
     return result
 
 
@@ -284,4 +300,107 @@ async def get_full_valuation(
         "price_history": {
             "history": history
         }
+    }
+
+
+async def get_full_valuation_from_image(
+    photo_b64: str,
+    photo_mime: str,
+    purchase_price: float = None,
+    image_search_query: str = "",
+    image_url: str = ""
+) -> dict:
+
+    # Step 1 — get prices from image
+    market = await fetch_prices_from_image(photo_b64, photo_mime, image_search_query, image_url)
+
+    resale_price = market.get("resale_price") or 0
+    sources = market.get("sources", [])
+
+    # Step 2 — GPT estimates final value from those prices
+    title = image_search_query if image_search_query else (
+        sources[0]["title"] if sources else "")
+    brand_raw = title.split()[0] if title else ""
+    brand_key = brand_raw.lower().replace("è", "e").replace("é", "e").strip()
+    config = get_brand_config(brand_key)
+    is_investment = any(m in title.lower()
+                        for m in config.get("investment_models", []))
+
+    prompt = f"""
+    You are a luxury handbag pricing expert. Estimate the current resale market price in EUR.
+
+    Bag identified as: "{title}"
+    Reseller prices found: {sources}
+    Median resale price: {resale_price} EUR
+
+    Brand pricing rules:
+    - Brand type: {"Investment piece — resale often EXCEEDS retail, do not cap at retail price" if is_investment else "Depreciating brand — resale is typically 40-70% of retail"}
+
+    Source trust order:
+    1. Reseller prices = most trusted
+    2. eBay prices = less trusted
+    3. Retail prices = new from boutique, NOT resale value
+
+    Return ONLY a JSON object:
+    - current_value: number (EUR)
+    - currency: "EUR"
+    - confidence: "low" | "medium" | "high"
+    - trend: "up" | "down" | "stable"
+    - price_range: object with min and max (EUR)
+    - retail_price: number (EUR)
+    - color_premium: boolean
+    """
+    # with this
+    gpt_result = await call_gpt(prompt)
+
+    # override if GPT undershoots real market data
+    if is_investment and resale_price:
+        if (gpt_result.get("current_value") or 0) < resale_price * 0.92:
+            gpt_result["current_value"] = resale_price
+            gpt_result["confidence"] = "medium"
+            print(
+                f"[get_full_valuation_from_image] GPT undershot — overriding with: {resale_price}")
+
+    # override price_range with actual values from sources
+    if sources:
+        prices_eur = [s["eur"] for s in sources]
+        gpt_result["price_range"] = {
+            "min": min(prices_eur),
+            "max": max(prices_eur)
+        }
+    # Step 3 — price history
+    current_value = gpt_result.get("current_value", resale_price)
+    history_result = await get_price_history(
+        brand=brand_raw,
+        model=title,
+        color=[],
+        leather="",
+        size="",
+        current_price=current_value,
+    )
+    history = history_result.get("history", [])
+
+    # Step 4 — change percentage
+    if purchase_price and purchase_price > 0:
+        change_percentage = round(
+            ((current_value - purchase_price) / purchase_price) * 100, 2)
+        change_basis = "purchase_price"
+    elif history:
+        avg_historical = sum(h["avg_price"] for h in history) / len(history)
+        change_percentage = round(
+            ((current_value - avg_historical) / avg_historical) * 100, 2)
+        change_basis = "historical_average"
+    else:
+        change_percentage = 0.0
+        change_basis = "none"
+
+    return {
+        **gpt_result,
+        "data_points": market.get("data_points", 0),
+        "sources_used": [{"type": "Image Search", "sites": [s["source"] for s in sources]}],
+        "market_sources": {"image_results": sources},
+        "change_percentage": change_percentage,
+        "change_basis": change_basis,
+        "purchase_price": purchase_price,
+        "price_history": {"history": history}
     }
