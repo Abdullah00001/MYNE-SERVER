@@ -445,6 +445,7 @@ export class UserBagService {
       priceStatus?: TAdminBagPriceStatus;
       historicalValue?: Record<string, IYearValue>;
     } = {};
+    const redisClient = getRedisClient();
     const { deletedImages, updatedData } =
       requestUpdateData as TPatchUserCollection;
     let images = [...collection.images];
@@ -480,6 +481,13 @@ export class UserBagService {
         );
 
         const aiData = plainResponse.data?.data;
+        await redisClient.set(
+          `bag-price-${collection._id}`,
+          JSON.stringify(aiData),
+          'PX',
+          24 * 60 * 60 * 1000
+        );
+        await redisClient.del(`bag-price-${collection._id}`);
         const priceHistory: { period: string; avg_price: number }[] =
           aiData?.price_history?.history ?? [];
         const currency: Currency = aiData?.currency ?? null;
@@ -551,6 +559,7 @@ export class UserBagService {
       const { updatedData, deletedImages } =
         requestUpdateData as TPatchUserCollection;
       console.log(updatedData);
+      const redisClient = getRedisClient();
       if (
         deletedImages &&
         deletedImages?.deletedImagesUrls &&
@@ -573,6 +582,7 @@ export class UserBagService {
       );
       if (!data)
         throw new Error('Something went wrong while updating the collection');
+      await redisClient.del(`bag-price-${collection._id}`);
       return data;
     } catch (error) {
       if (error instanceof Error) throw error;
