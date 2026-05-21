@@ -25,21 +25,7 @@ export class PriceSyncWorker extends BaseWorker {
   }
 
   private async process(job: Job<IPriceSyncJobData>): Promise<void> {
-    const {
-      bagId,
-      brand,
-      model,
-      color,
-      condition,
-      leather,
-      hardware,
-      size,
-      updateType,
-      variant,
-      imageSearchQuery,
-      specialVariant,
-      purchasePrice,
-    } = job.data;
+    const { primaryImage, updateType, imageSearchQuery, bagId } = job.data;
 
     try {
       logger.info(
@@ -47,19 +33,10 @@ export class PriceSyncWorker extends BaseWorker {
       );
 
       const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price`,
+        `${env.AI_SERVER_URL}/bags/price/by-image`,
         {
-          brand,
-          model,
-          color,
-          condition,
-          leather,
-          hardware,
-          size,
-          construction: variant,
-          special_variant: specialVariant,
+          image_url: primaryImage,
           image_search_query: imageSearchQuery,
-          purchase_price: purchasePrice,
         }
       );
 

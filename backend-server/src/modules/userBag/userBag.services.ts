@@ -35,12 +35,8 @@ import axios from 'axios';
 import { env } from '@/env';
 import { IBrand } from '@/modules/brand/brand.types';
 import { IModel } from '@/modules/model/model.types';
-import {
-  Currency,
-} from '@/modules/adminBag/adminBag.types';
-import {
-  TAdminBagPriceStatus,
-} from '@/modules/adminBag/adminBag.model';
+import { Currency } from '@/modules/adminBag/adminBag.types';
+import { TAdminBagPriceStatus } from '@/modules/adminBag/adminBag.model';
 import { monthNameMap } from '@/const';
 
 @injectable()
@@ -118,7 +114,7 @@ export class UserBagService {
         specialVariant,
         variant,
         wearChecklist,
-        yearsOfBag
+        yearsOfBag,
       } = payload;
       const brand = await Brand.findOne({ _id: brandId });
       if (!brand) throw new Error('Brand Not Found');
@@ -185,7 +181,7 @@ export class UserBagService {
       specialVariant,
       variant,
       wearChecklist,
-      yearsOfBag
+      yearsOfBag,
     } = payload;
     const brand = await Brand.findOne({ _id: brandId });
     if (!brand) throw new Error('Brand Not Found');
@@ -206,20 +202,17 @@ export class UserBagService {
       yearsOfBag,
     };
     console.log(bagColor);
-    if (!imageSearchQuery) {
-      payloadWithImage.imageSearchQuery =
-        this.systemUtils.buildImageSearchQuery({
-          brand: brand?.brandName as string,
-          model: model?.modelName as string,
-          bagColor,
-          condition,
-          hardwareColor,
-          material,
-          size,
-          specialVariant,
-          variant,
-        });
-    }
+    payloadWithImage.imageSearchQuery = this.systemUtils.buildImageSearchQuery({
+      brand: brand?.brandName as string,
+      model: model?.modelName as string,
+      bagColor,
+      condition,
+      hardwareColor,
+      material,
+      size,
+      specialVariant,
+      variant,
+    });
     console.log(payloadWithImage);
     try {
       const response = await UserCollection.findByIdAndUpdate(
@@ -476,19 +469,10 @@ export class UserBagService {
       newUpdatedData.images = images;
       if (isPublished) {
         const plainResponse = await axios.post(
-          `${env.AI_SERVER_URL}/bags/price`,
+          `${env.AI_SERVER_URL}/bags/price/by-image`,
           {
-            brand: (collection.brandId as IBrand).brandName,
-            model: (collection.modelId as IModel).modelName,
-            color: collection.bagColor,
-            condition: collection.condition,
-            leather: collection.material,
-            hardware: collection.hardwareColor,
-            size: collection.size,
-            construction: collection.variant,
-            special_variant: collection.specialVariant,
+            image_url: (collection.brandId as IBrand).brandName,
             image_search_query: collection.imageSearchQuery,
-            purchase_price: collection.purchasePrice,
           }
         );
 
@@ -1389,19 +1373,10 @@ export class UserBagService {
       ]);
       if (!result) throw new Error('Bag not found');
       const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price`,
+        `${env.AI_SERVER_URL}/bags/price/by-image`,
         {
-          brand: (collection.brandId as IBrand).brandName,
-          model: (collection.modelId as IModel).modelName,
-          color: collection.bagColor,
-          condition: collection.condition,
-          leather: collection.material,
-          hardware: collection.hardwareColor,
-          size: collection.size,
-          construction: collection.variant,
-          special_variant: collection.specialVariant,
+          image_url: collection.primaryImage,
           image_search_query: collection.imageSearchQuery,
-          purchase_price: collection.purchasePrice,
         }
       );
       const aiResponsePayload = plainResponse.data?.data;

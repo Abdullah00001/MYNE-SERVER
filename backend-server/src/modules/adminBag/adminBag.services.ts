@@ -71,6 +71,11 @@ export class AdminBagService {
     const mimeType = extname(filePath);
     const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
     try {
+      const url = await this.s3Utils.singleUpload({
+        filePath,
+        key,
+        mimeType,
+      });
       const brand = await Brand.findOne({ _id: brandId });
       if (!brand) throw new Error('Brand Not Found');
       const model = await ModelModel.findOne({ _id: modelId });
@@ -87,17 +92,9 @@ export class AdminBagService {
         specialVariant,
       });
       const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price`,
+        `${env.AI_SERVER_URL}/bags/price/by-image`,
         {
-          brand: brand?.brandName,
-          model: model?.modelName,
-          color: bagColor,
-          condition,
-          leather: material,
-          hardware: hardwareColor,
-          size,
-          construction: variant,
-          special_variant: specialVariant,
+          image_url: url,
           image_search_query: imageSearchQuery,
         }
       );
@@ -141,11 +138,6 @@ export class AdminBagService {
       }
 
       aiFields.historicalValue = historicalValue;
-      const url = await this.s3Utils.singleUpload({
-        filePath,
-        key,
-        mimeType,
-      });
       const newAdminBag = new UserCollection({
         variant,
         brandId,
@@ -450,19 +442,10 @@ export class AdminBagService {
       ]);
       if (!result) throw new Error('Bag not found');
       const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price`,
+        `${env.AI_SERVER_URL}/bags/price/by-image`,
         {
-          brand: (collection.brandId as IBrand).brandName,
-          model: (collection.modelId as IModel).modelName,
-          color: collection.bagColor,
-          condition: collection.condition,
-          leather: collection.material,
-          hardware: collection.hardwareColor,
-          size: collection.size,
-          construction: collection.variant,
-          special_variant: collection.specialVariant,
+          image_url: collection.primaryImage,
           image_search_query: collection.imageSearchQuery,
-          purchase_price: collection.purchasePrice,
         }
       );
       const aiResponsePayload = plainResponse.data?.data;
@@ -470,7 +453,7 @@ export class AdminBagService {
         aiResponsePayload?.sources_used?.flatMap(
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
-     
+
       return {
         ...result,
         aiSuggestedPrice: aiResponsePayload?.current_value,
