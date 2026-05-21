@@ -1,9 +1,8 @@
-from collections import Counter
 import re
 import httpx
 import asyncio
-from app.config import SERPER_API_KEY
-from app.services.brand_config import get_official_site
+from app.config import SERPER_API_KEY, OPENAI_API_KEY
+from app.services.brand_config import get_official_site, get_brand_config
 
 
 SERPER_HEADERS = {
@@ -37,9 +36,9 @@ def extract_price(text) -> float | None:
 def detect_currency_symbol(text) -> str:
     if text is None:
         return "€"
- 
+
     text = str(text)  # 🔥 normalize everything to string
- 
+
     if "$" in text or "USD" in text:
         return "$"
     if "£" in text or "GBP" in text:
@@ -48,7 +47,7 @@ def detect_currency_symbol(text) -> str:
         return "€"
     if "¥" in text or "JPY" in text or "CNY" in text:
         return "¥"
- 
+
     return "€"
 
 # ─────────────────────────────────────────
@@ -84,7 +83,7 @@ async def refresh_rates():
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             res = await client.get(
-                "https://api.frankfurter.app/latest",
+                "https://api.frankfurter.dev/v1/latest",
                 params={"from": "EUR", "to": "USD,GBP,JPY,CNY,CHF"}
             )
             res.raise_for_status()
@@ -120,14 +119,16 @@ def to_eur(price: float, symbol: str) -> float:
 def parse_prices_from_results(results: list, min_price: float = 500) -> list[dict]:
     prices = []
     for item in results:
-        raw = item.get("price", "")
-        source = item.get("link", "") or item.get("source", "")
+        raw = str(item.get("price", ""))
 
-        domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', source)
-        domain = domain.group(1) if domain else "unknown"
+        merchant = item.get("source", "").strip()
+        link = item.get("productLink") or item.get("link", "")
+
+        if not merchant:
+            domain_match = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+            merchant = domain_match.group(1) if domain_match else "unknown"
 
         if not raw:
-            # Organic result — scan title + snippet for currency-attached prices only
             text = f"{item.get('title', '')} {item.get('snippet', '')}"
             match = re.search(
                 r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text)
@@ -137,18 +138,40 @@ def parse_prices_from_results(results: list, min_price: float = 500) -> list[dic
                 if price > min_price:
                     eur = to_eur(price, symbol)
                     prices.append({"eur": eur, "original": price,
-                                  "currency": symbol, "source": domain})
+                                   "currency": symbol, "source": normalize_source(merchant), "url": link})
             continue
 
-        # Shopping result — price field is clean
+        EXCLUDE_RETAIL_SITES = [
+            "farfetch.com", "mytheresa.com", "net-a-porter.com", "matches.com"]
+        if any(site in normalize_source(merchant) for site in EXCLUDE_RETAIL_SITES):
+            continue
+
         price = extract_price(raw)
         if price and price > min_price:
             symbol = detect_currency_symbol(raw)
             eur = to_eur(price, symbol)
             prices.append({"eur": eur, "original": price,
-                          "currency": symbol, "source": domain})
+                          "currency": symbol, "source": normalize_source(merchant), "url": link})
 
     return prices
+
+
+def deduplicate_by_domain(prices: list[dict]) -> list[dict]:
+    seen = {}
+    for p in prices:
+        domain = normalize_source(p["source"])
+        if domain not in seen or p["eur"] > seen[domain]["eur"]:
+            seen[domain] = p
+    return list(seen.values())
+
+
+def normalize_source(source: str) -> str:
+    """Convert merchant names to their domain for consistent deduplication."""
+    # If it already looks like a domain, return as-is
+    if "." in source:
+        return source.lower()
+    # Otherwise slugify: lowercase, replace spaces with nothing
+    return source.lower().replace(" ", "").replace("'", "") + ".com"
 
 
 def remove_outliers(prices: list[dict]) -> list[dict]:
@@ -156,7 +179,7 @@ def remove_outliers(prices: list[dict]) -> list[dict]:
     Remove statistical outliers using the IQR method.
     Works on list of price dicts.
     """
-    if len(prices) < 4:
+    if len(prices) < 6:
         return prices
 
     values = [p["eur"] for p in prices]
@@ -176,6 +199,26 @@ def remove_outliers(prices: list[dict]) -> list[dict]:
 # ─────────────────────────────────────────
 # FETCHERS
 # ─────────────────────────────────────────
+async def scrape_page_text(client: httpx.AsyncClient, url: str) -> dict | None:
+    try:
+        page = await asyncio.wait_for(client.get(url, follow_redirects=True), timeout=5.0)
+        # Strip HTML tags to get readable text only
+        text = re.sub(r'<[^>]+>', ' ', page.text)
+        # Collapse whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        text = text.replace('"', "'").replace('\n', ' ').replace('\r', ' ')
+        snippet = text[:5000]
+
+        domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', url)
+        domain = domain.group(1) if domain else "unknown"
+
+        print(f"[scrape_page_text] {domain} → {len(snippet)} chars")
+        return {"source": domain, "url": url, "raw_text": snippet}
+    except Exception as e:
+        print(f"[scrape_page_text] failed {url}: {e}")
+    return None
+
 
 async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
     """
@@ -194,6 +237,8 @@ async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, c
 # CORRECT — string in both branches
     query = f"{image_search_query} site:{official_site}" if image_search_query else f"{brand} {model} {size} {leather} {format_colors(color)} buy site:{official_site}"
 
+    print(f"[fetch_retail_prices] query: {query}")
+
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             res = await client.post(
@@ -203,66 +248,129 @@ async def fetch_retail_prices(brand: str, model: str, size: str, leather: str, c
             )
             data = res.json()
 
-        # Step 2 — grab first matching product URL
-        product_url = None
-        for result in data.get("organic", []):
-            link = result.get("link", "")
-            if official_site in link:
-                product_url = link
-                break
+        prices = parse_prices_from_results(
+            data.get("organic", []), min_price=500)
+        print(
+            f"[fetch_retail_prices] {brand} → found {len(prices)} prices from snippet")
+        return prices
+    except Exception as e:
+        print(f"[fetch_retail_prices] Failed: {e}")
+        return []
 
-        if not product_url:
-            print(f"[fetch_retail_prices] No product page found for {brand}")
+
+async def ai_extract_price_from_page(page_text: str, image_search_query: str) -> dict | None:
+    """
+    Ask AI to extract the price for our specific bag from scraped page text.
+    Returns {"symbol": "€", "price": 8500.0} or None if not found.
+    """
+    prompt = f"""You are a luxury bag pricing expert.
+
+Target bag: "{image_search_query}"
+
+Below is scraped text from a reseller product page.
+Find the price of this EXACT bag on this page.
+Reply with ONLY the price in this format: SYMBOL AMOUNT (e.g. "$ 8500" or "€ 12000")
+If the page does not contain a price for this exact bag, reply with "none".
+
+Page text:
+{page_text[:5000]}"""
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            res = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
+                         "Content-Type": "application/json"},
+                json={"model": "gpt-4o-mini",
+                      "messages": [{"role": "user", "content": prompt}], "max_tokens": 20}
+            )
+            result = res.json()["choices"][0]["message"]["content"].strip()
+            print(f"[ai_extract_price] result: {result}")
+
+            if result.lower() == "none":
+                return None
+
+            match = re.search(
+                r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', result)
+            if match:
+                return {"symbol": match.group(1), "price": float(match.group(2).replace(",", ""))}
+    except Exception as e:
+        print(f"[ai_extract_price] failed: {e}")
+    return None
+
+
+async def ai_filter_titles(items: list, image_search_query: str) -> list:
+    """Use OpenAI to filter shopping results to only exact bag matches."""
+    if not items:
+        return []
+
+    titles = [f"{i}: {item.get('title', '')}" for i, item in enumerate(items)]
+    titles_text = "\n".join(titles)
+
+    prompt = f"""You are a luxury bag expert.
+Target bag: "{image_search_query}"
+
+Below are search result titles numbered 0 to {len(items)-1}.
+Return ONLY the numbers of listings that are for the EXACT same bag (same model, size, leather, color).
+Ignore guides, articles, category pages, or different variants.
+Reply with only comma-separated numbers, nothing else. If none match, reply with "none".
+
+Titles:
+{titles_text}"""
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
+                         "Content-Type": "application/json"},
+                json={"model": "gpt-4o-mini",
+                      "messages": [{"role": "user", "content": prompt}], "max_tokens": 100}
+            )
+            result = res.json()["choices"][0]["message"]["content"].strip()
+            print(f"[ai_filter] AI selected: {result}")
+            if result.lower() == "none":
+                return []
+            indices = [int(x.strip())
+                       for x in result.split(",") if x.strip().isdigit()]
+            return [items[i] for i in indices if i < len(items)]
+    except Exception as e:
+        print(f"[ai_filter] failed: {e} — returning all")
+        return items
+
+
+async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[dict]:
+    color_str = format_colors(color)
+    base = image_search_query if image_search_query else f"{brand} {model} {size} {color_str} {leather} {construction} {special_variant}".strip(
+    )
+
+    config = get_brand_config(brand)
+    min_price = config.get("min_resale_price", 300)
+
+    print(f"[fetch_reseller_prices] base query: {base}")
+
+    # ── Query 1: Shopping endpoint — always has clean price field ──
+    async def search_shopping(q: str) -> list:
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                res = await client.post(
+                    "https://google.serper.dev/shopping",
+                    headers=SERPER_HEADERS,
+                    json={"q": q, "num": 20}
+                )
+                res.raise_for_status()
+                results = res.json().get("shopping", [])
+                for item in results[:5]:
+                    print(
+                        f"[raw shopping item] source={item.get('source')} | price={item.get('price')} | link={item.get('link', '')[:60]} | productLink={item.get('productLink', 'MISSING')[:80]}"
+                    )
+                return results  # ← this was missing
+        except Exception as e:
+            print(f"[fetch_reseller_prices] shopping failed: {e}")
             return []
 
-        # Step 3 — scrape the actual page for price
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }) as client:
-            page = await client.get(product_url)
-            html = page.text
-
-        # Step 4 — extract price from HTML
-        matches = re.findall(
-            r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', html)
-        if matches:
-            prices_found = []
-            for symbol, amount in matches:
-                try:
-                    price = float(amount.replace(",", ""))
-                    if price > 500:
-                        prices_found.append((symbol, price))
-                except:
-                    continue
-
-            if prices_found:
-                symbol, price = Counter(prices_found).most_common(1)[0][0]
-                eur = to_eur(price, symbol)
-                print(
-                    f"[fetch_retail_prices] Scraped {price}{symbol} from {product_url}")
-                return [{"eur": eur, "original": price, "currency": symbol, "source": official_site}]
-
-        print(f"[fetch_retail_prices] No price found in page HTML")
-        return []
-    except Exception as e:
-        print(f"[fetch_retail_prices] Failed to fetch retail price: {e}")
-        return []
-
-
-async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
-    """
-    Fetch resale prices from luxury resale platforms.
-    Used for ALL brands including Hermès and Goyard.
-    """
-    base = image_search_query if image_search_query else f"{brand} {model} {size} {format_colors(color)} {leather}"
-
-    # Split into 3 queries to cover all sites without truncation
-    query_1 = f"{base} site:vestiaire.com OR site:therealreal.com OR site:1stdibs.com"
-    query_2 = f"{base} site:rebag.com OR site:fashionphile.com OR site:madisonavenuecouture.com"
-    query_3 = f"{base} site:sothebys.com OR site:saclab.com OR site:ginzaxiaoma.com"
-    query_4 = f"{base} site:baghunter.com OR site:collector-square.com OR site:privéporter.com"
-
-    async def search(q: str) -> list:
+    # ── Query 2: Organic — for sites not in shopping index ──
+    async def search_organic(q: str) -> list:
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 res = await client.post(
@@ -273,19 +381,70 @@ async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str,
                 res.raise_for_status()
                 return res.json().get("organic", [])
         except Exception as e:
-            print(f"[fetch_reseller_prices] query failed: {e}")
+            print(f"[fetch_reseller_prices] organic failed: {e}")
             return []
 
-    results_1, results_2, results_3, results_4 = await asyncio.gather(
-        search(query_1), search(query_2), search(query_3), search(query_4)
+    # Run shopping + organic in parallel
+    shopping_results, organic_results = await asyncio.gather(
+        search_shopping(image_search_query if image_search_query else base),
+        search_organic(f"{image_search_query if image_search_query else base} site:jewelsaficionado.com OR site:sellierknightsbridge.com OR site:priveporter.com OR site:mightychic.com OR site:theluxurycloset.com OR site:fashionphile.com OR site:vestiaire.com OR site:therealreal.com OR site:1stdibs.com OR site:rebag.com OR site:madisonavenuecouture.com OR site:baghunter.com OR site:collector-square.com OR site:sothebys.com OR site:christies.com OR site:bonhams.com OR site:saclab.com OR site:Loveluxury.com"),
     )
 
-    all_results = results_1 + results_2 + results_3 + results_4
-    prices = parse_prices_from_results(all_results, min_price=500)
+    shopping_results = await ai_filter_titles(shopping_results, image_search_query)
 
     print(
-        f"[fetch_reseller_prices] {brand} {model} → found {len(prices)} prices: {prices}")
-    return remove_outliers(prices)
+        f"[filter] {len(shopping_results)} shopping / {len(organic_results)} organic after title match")
+
+    # Parse prices from both
+    shopping_prices = parse_prices_from_results(
+        shopping_results, min_price=min_price)
+    # Scrape organic result pages directly for accurate prices
+    organic_prices = []
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }) as client:
+        tasks = [scrape_page_text(client, item.get("link", ""))
+                 for item in organic_results if item.get("link")]
+        pages = await asyncio.gather(*tasks)
+        valid_pages = [p for p in pages if p]
+        ai_tasks = [ai_extract_price_from_page(
+            p["raw_text"], image_search_query) for p in valid_pages]
+        ai_results = await asyncio.gather(*ai_tasks)
+
+        for page, extracted in zip(valid_pages, ai_results):
+            if not extracted:
+                continue
+            symbol = extracted["symbol"]
+            price = extracted["price"]
+            if price > min_price:
+                eur = to_eur(price, symbol)
+                organic_prices.append(
+                    {"eur": eur, "original": price, "currency": symbol, "source": page["source"], "url": page["url"]})
+    # Log what we found
+    # Fallback — snippet prices from organic results
+    snippet_prices = parse_prices_from_results(
+        organic_results, min_price=min_price)
+    print(f"[organic snippets] found {len(snippet_prices)} snippet prices")
+    organic_prices = organic_prices + snippet_prices
+
+    # Log what we found
+    for p in shopping_prices:
+        print(
+            f"[shopping] {p['source']} → {p['currency']}{p['original']} = €{p['eur']}")
+    for p in organic_prices:
+        print(
+            f"[organic] {p['source']} → {p['currency']}{p['original']} = €{p['eur']}")
+
+    # Merge, deduplicate, remove outliers
+    all_prices = shopping_prices + organic_prices
+    print(
+        f"[debug] before dedup: {[(p['source'], p['eur']) for p in all_prices]}")
+    all_prices = deduplicate_by_domain(all_prices)
+    all_prices = remove_outliers(all_prices)
+
+    print(
+        f"[fetch_reseller_prices] → {len(all_prices)} clean prices: {all_prices}")
+    return all_prices
 
 
 async def fetch_ebay_listings(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
@@ -305,9 +464,15 @@ async def fetch_ebay_listings(brand: str, model: str, size: str, leather: str, c
             res.raise_for_status()
             data = res.json()
 
+        shopping_results = data.get("shopping", [])
+        shopping_results = await ai_filter_titles(shopping_results, image_search_query)
+
         prices = parse_prices_from_results(
-            data.get("shopping", []), min_price=800)
-        return remove_outliers(prices)
+            shopping_results, min_price=800)
+        prices = remove_outliers(prices)
+        print(
+            f"[debug] before dedup: {[(p['source'], p['eur']) for p in prices]}")
+        return deduplicate_by_domain(prices)   # ← add this
 
     except Exception as e:
         print(f"[fetch_ebay_listings] failed: {e}")
@@ -345,27 +510,21 @@ async def fetch_all_market_prices(
     retail_price = round(
         retail_sorted[len(retail_sorted) // 2]["eur"], 2) if retail_sorted else None
 
-    # Compute resale median
-# Compute resale price
-    all_resale = reseller + ebay
-    all_resale_sorted = sorted(all_resale, key=lambda x: x["eur"])
-
-    if all_resale_sorted:
-        if len(all_resale_sorted) < 3:
-            # sparse data — take highest price
-            resale_price = round(all_resale_sorted[-1]["eur"], 2)
-            print(
-                f"[fetch_all_market_prices] Sparse data — using highest price: {resale_price}")
-        else:
-            # enough data — use median
-            resale_price = round(
-                all_resale_sorted[len(all_resale_sorted) // 2]["eur"], 2)
+# Resellers 2x weighted over eBay
+    pool = reseller + reseller + ebay
+    if pool:
+        pool_sorted = sorted(pool, key=lambda x: x["eur"])
+        n = len(pool_sorted)
+        resale_price = round(
+            (pool_sorted[n//2-1]["eur"] + pool_sorted[n//2]["eur"]) / 2, 2
+        ) if n % 2 == 0 else round(pool_sorted[n//2]["eur"], 2)
     else:
         resale_price = None
 
     total_points = len(retail) + len(reseller) + len(ebay)
 
-    # Valuation status
+    total_points = len(retail) + len(reseller) + len(ebay)
+
     if total_points < 3:
         valuation_status = "Not enough data for precise valuation"
     elif total_points < 6:
@@ -373,11 +532,11 @@ async def fetch_all_market_prices(
     else:
         valuation_status = "Good data — high confidence"
 
-    # Build source breakdown
     def summarize(price_list: list[dict]) -> list[dict]:
         return [
             {
                 "source": p["source"],
+                "url": p.get("url", ""),   # ← add this
                 "price_eur": p["eur"],
                 "original_price": p["original"],
                 "currency": p["currency"]
@@ -394,14 +553,10 @@ async def fetch_all_market_prices(
         "data_points": total_points,
         "valuation_status": valuation_status,
         "needs_gpt_fallback": total_points < 3,
-        # Source breakdowns for frontend
         "retail_sources": summarize(retail),
-        "reseller_sources": summarize(reseller),
+        "reseller_sources": summarize(reseller),  # ← fixed
         "ebay_sources": summarize(ebay),
-        # Raw for debugging
-        "retail_prices_raw": [p["eur"] for p in retail],
-        "reseller_prices_raw": [p["eur"] for p in reseller],
-        "ebay_prices_raw": [p["eur"] for p in ebay],
+        "reseller_raw_pages": [],                 # ← no longer used
     }
 # ─────────────────────────────────────────
 # IMAGE FETCH (unchanged, kept for reuse)
@@ -451,6 +606,9 @@ async def fetch_bag_image(query: str) -> dict:
         "site:privéporter.com",
         "site:xupes.com",
         "site:ginzaxiaoma.com",
+        "site:jewelsaficionado.com",
+        "site:mightychic.com",
+        "site:theluxurycloset.com",
     ])
     refined_query = f"{query} {site_filter}"
 

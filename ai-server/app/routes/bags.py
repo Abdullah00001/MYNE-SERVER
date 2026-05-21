@@ -2,12 +2,13 @@ import uuid
 from fastapi import APIRouter, HTTPException, File, UploadFile, Request
 import base64
 import asyncio
-from bson import ObjectId
-from datetime import datetime
+import httpx
 from app.services.openai_service import identify_bag
 from app.services.serp_service import fetch_bag_image
-from app.services.price_service import get_full_valuation   # ← single entry point
+# ← single entry point
+from app.services.price_service import get_full_valuation, get_full_valuation_from_image
 from app.database import usercollections, db
+from app.services.serp_service_copy import fetch_prices_from_image
 
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
@@ -113,9 +114,28 @@ async def get_price(req: ConfirmBagRequest):
     }
 
 
-# ─────────────────────────────────────────
-# CRUD
-# ─────────────────────────────────────────
+class ImageUrlRequest(BaseModel):
+    image_url: str
+    image_search_query: str = ""
+
+
+@router.post("/bags/price/by-image")
+async def price_by_image(req: ImageUrlRequest):
+    # download image from S3 url
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(req.image_url)
+        response.raise_for_status()
+        contents = response.content
+        mime = response.headers.get("content-type", "image/jpeg")
+
+    b64 = base64.b64encode(contents).decode("utf-8")
+
+    result = await get_full_valuation_from_image(
+        photo_b64=b64,
+        photo_mime=mime,
+        image_search_query=req.image_search_query
+    )
+    return {"status": 200, "success": True, "data": result}
 
 
 @router.get("/health")
