@@ -46,7 +46,7 @@ export interface IUserBag {
   priceStatus: TAdminBagPriceStatus;
   wearChecklist: string[];
   // productionYear: number;
-  yearsOfBag:string;
+  yearsOfBag: string;
   condition: string;
   purchasePrice: number;
   sellerName: string;
@@ -60,9 +60,9 @@ export interface IUserBag {
   receipt?: string | null;
   isArchived: boolean;
   publishStatus: PublishStatus;
-  specialVariant:string;
-  imageSearchQuery:string;
-  isAdmin:boolean
+  specialVariant: string;
+  imageSearchQuery: string;
+  isAdmin: boolean;
   historicalValue?: Record<string, IYearValue> | Map<string, IYearValue>;
   __v?: number;
 }
@@ -105,3 +105,52 @@ export type IUserBagResponse = IUserBag & {
   historicalValueYears: string[];
   aiSuggestedPrice: number;
 };
+
+interface PriceRange {
+  min: number;
+  max: number;
+}
+
+interface Source {
+  type: string;
+  sites: string[];
+}
+
+interface MarketSearchResult {
+  eur: number;
+  original: number;
+  currency: string;
+  source: string;
+  url: string;
+  title: string;
+}
+
+interface MarketSources {
+  Search_Results: MarketSearchResult[];
+}
+
+interface PriceHistoryEntry {
+  period: string;
+  avg_price: number;
+}
+
+interface PriceHistory {
+  history: PriceHistoryEntry[];
+}
+
+export interface ValuationResponse {
+  current_value: number | undefined;
+  currency: string | undefined;
+  confidence: string | undefined;
+  trend: string;
+  price_range: PriceRange | undefined;
+  retail_price: number | undefined;
+  color_premium: boolean | undefined;
+  data_points: number | undefined;
+  sources_used: Source[];
+  market_sources: MarketSources | undefined;
+  change_percentage: number | undefined;
+  change_basis: string | undefined;
+  purchase_price: number | undefined;
+  price_history: PriceHistory | undefined;
+}

@@ -25,6 +25,7 @@ import {
   TCollectionsActions,
   TFileInfo,
   TGetCollectionsResponse,
+  ValuationResponse,
 } from '@/modules/userBag/userBag.types';
 import { S3Utils } from '@/utils/s3.utils';
 import { SystemUtils } from '@/utils/system.utils';
@@ -38,6 +39,7 @@ import { IModel } from '@/modules/model/model.types';
 import { Currency } from '@/modules/adminBag/adminBag.types';
 import { TAdminBagPriceStatus } from '@/modules/adminBag/adminBag.model';
 import { monthNameMap } from '@/const';
+import { getRedisClient } from '@/configs/redis.config';
 
 @injectable()
 export class UserBagService {
@@ -473,6 +475,7 @@ export class UserBagService {
           {
             image_url: collection.primaryImage,
             image_search_query: collection.imageSearchQuery,
+            purchase_price: collection.purchasePrice,
           }
         );
 
@@ -1320,6 +1323,7 @@ export class UserBagService {
     year?: string;
   }): Promise<IUserBagResponse> {
     try {
+      const redisClient = getRedisClient();
       const targetYear = year ?? new Date().getFullYear().toString();
       console.log(collection);
       const [result] = await UserCollection.aggregate([
@@ -1372,14 +1376,32 @@ export class UserBagService {
         },
       ]);
       if (!result) throw new Error('Bag not found');
-      const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price/by-image`,
-        {
-          image_url: collection.primaryImage,
-          image_search_query: collection.imageSearchQuery,
-        }
+      let aiResponsePayload: ValuationResponse;
+      const cacheAiResponse = await redisClient.get(
+        `bag-price-${collection._id}`
       );
-      const aiResponsePayload = plainResponse.data?.data;
+      if (cacheAiResponse) {
+        aiResponsePayload = JSON.parse(cacheAiResponse) as ValuationResponse;
+      } else {
+        const plainResponse = await axios.post(
+          `${env.AI_SERVER_URL}/bags/price/by-image`,
+          {
+            image_url: collection.primaryImage,
+            image_search_query: collection.imageSearchQuery,
+            purchase_price: collection.purchasePrice,
+          }
+        );
+        const freshAiResponsePayload = plainResponse.data?.data;
+        // Cache the AI response for 24 hours
+        await redisClient.set(
+          `bag-price-${collection._id}`,
+          JSON.stringify(freshAiResponsePayload),
+          'PX',
+          24 * 60 * 60 * 1000
+        );
+        aiResponsePayload = freshAiResponsePayload;
+      }
+
       const allSites =
         aiResponsePayload?.sources_used?.flatMap(
           (s: { type: string; sites: string[] }) => s.sites

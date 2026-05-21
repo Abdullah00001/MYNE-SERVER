@@ -96,6 +96,7 @@ export class AdminBagService {
         {
           image_url: url,
           image_search_query: imageSearchQuery,
+          purchase_price:null,
         }
       );
       const aiData = plainResponse.data?.data;
@@ -446,6 +447,7 @@ export class AdminBagService {
         {
           image_url: collection.primaryImage,
           image_search_query: collection.imageSearchQuery,
+          purchase_price:collection.purchasePrice,
         }
       );
       const aiResponsePayload = plainResponse.data?.data;

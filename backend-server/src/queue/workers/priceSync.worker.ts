@@ -25,7 +25,7 @@ export class PriceSyncWorker extends BaseWorker {
   }
 
   private async process(job: Job<IPriceSyncJobData>): Promise<void> {
-    const { primaryImage, updateType, imageSearchQuery, bagId } = job.data;
+    const { primaryImage, updateType, imageSearchQuery, bagId,purchasePrice } = job.data;
 
     try {
       logger.info(
@@ -37,6 +37,7 @@ export class PriceSyncWorker extends BaseWorker {
         {
           image_url: primaryImage,
           image_search_query: imageSearchQuery,
+          purchase_price: purchasePrice,
         }
       );
 

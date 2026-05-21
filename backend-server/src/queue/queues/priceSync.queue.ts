@@ -9,6 +9,7 @@ export interface IPriceSyncJobData {
   primaryImage: string;
   imageSearchQuery:string;
   updateType: 'CURRENT' | 'HISTORICAL';
+  purchasePrice: number|null;
 }
 
 @injectable()
