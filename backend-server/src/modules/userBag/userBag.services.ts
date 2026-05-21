@@ -1321,7 +1321,7 @@ export class UserBagService {
   }): Promise<IUserBagResponse> {
     try {
       const targetYear = year ?? new Date().getFullYear().toString();
-
+      console.log(collection);
       const [result] = await UserCollection.aggregate([
         {
           $match: { _id: collection._id, isAdmin: false },
