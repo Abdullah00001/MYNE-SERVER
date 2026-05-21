@@ -4,7 +4,7 @@ from turtle import title
 import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
-from app.services.serp_service_copy import fetch_prices_from_image
+from app.services.serp_service_copy import detect_currency_symbol, extract_price, fetch_prices_from_image, to_eur
 from app.services.brand_config import get_brand_config
 
 from datetime import datetime
@@ -316,6 +316,7 @@ async def get_full_valuation_from_image(
 
     resale_price = market.get("resale_price") or 0
     sources = market.get("sources", [])
+    reference_sources = market.get("reference_sources", [])
 
     # Step 2 — GPT estimates final value from those prices
     title = image_search_query if image_search_query else (
@@ -326,31 +327,75 @@ async def get_full_valuation_from_image(
     is_investment = any(m in title.lower()
                         for m in config.get("investment_models", []))
 
+    # Build confidence hint based on data quality
+    if len(sources) >= 5:
+        confidence_hint = "high"
+    elif sources or reference_sources:
+        confidence_hint = "medium"
+    else:
+        confidence_hint = "low"
+
+    # Build price context
+    if sources:
+        src_items = [
+            f"- {s['title']}: €{s['eur']} ({s['source']})" for s in sources]
+        price_context = f"""
+    Exact market prices found for this bag:
+    {chr(10).join(src_items)}
+    Median resale price: €{resale_price}
+    Use these as your PRIMARY anchor.
+    """
+    elif reference_sources:
+        ref_items = []
+        for r in reference_sources:
+            price = extract_price(r["price_raw"])
+            symbol = detect_currency_symbol(r["price_raw"])
+            eur = to_eur(price, symbol) if price else "unknown"
+            ref_items.append(f"- {r['title']}: €{eur} ({r['source']})")
+
+        price_context = f"""
+    No exact match found for "{title}".
+    Below are prices for visually similar bags (may be different size/model) — use as calibration reference only:
+    {chr(10).join(ref_items)}
+    Adjust your estimate based on the size and model difference between these and the target bag.
+    Do NOT copy these prices directly.
+    """
+    else:
+        price_context = f"""
+    No market data found from image search.
+    Use your expert knowledge of current resale market prices for "{title}" 
+    as seen on Vestiaire, 1stDibs, TheRealReal etc. in {today}.
+    """
+
     prompt = f"""
+    Today is {today}.
     You are a luxury handbag pricing expert. Estimate the current resale market price in EUR.
 
     Bag identified as: "{title}"
-    Reseller prices found: {sources}
-    Median resale price: {resale_price} EUR
+
+    {price_context}
 
     Brand pricing rules:
     - Brand type: {"Investment piece — resale often EXCEEDS retail, do not cap at retail price" if is_investment else "Depreciating brand — resale is typically 40-70% of retail"}
 
     Source trust order:
     1. Reseller prices = most trusted
-    2. eBay prices = less trusted
+    2. eBay prices = less trusted  
     3. Retail prices = new from boutique, NOT resale value
+
+    Data quality: {"Exact market prices found" if sources else "Similar bag prices used as reference" if reference_sources else "Pure knowledge estimate — no market data"}
+    Set confidence to "{confidence_hint}".
 
     Return ONLY a JSON object:
     - current_value: number (EUR)
     - currency: "EUR"
-    - confidence: "low" | "medium" | "high"
+    - confidence: "{confidence_hint}"
     - trend: "up" | "down" | "stable"
     - price_range: object with min and max (EUR)
     - retail_price: number (EUR)
     - color_premium: boolean
     """
-    # with this
+
     gpt_result = await call_gpt(prompt)
 
     # override if GPT undershoots real market data
@@ -397,8 +442,8 @@ async def get_full_valuation_from_image(
     return {
         **gpt_result,
         "data_points": market.get("data_points", 0),
-        "sources_used": [{"type": "Image Search", "sites": [s["source"] for s in sources]}],
-        "market_sources": {"image_results": sources},
+        "sources_used": [{"type": "Organic Search", "sites": [s["source"] for s in sources]}],
+        "market_sources": {"Search_Results": sources},
         "change_percentage": change_percentage,
         "change_basis": change_basis,
         "purchase_price": purchase_price,

@@ -77,7 +77,7 @@ def extract_price(text) -> float | None:
 async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> list:
     """Use AI to keep only sources matching the exact bag."""
     if not priced_sources:
-        return []
+        return [], []
 
     items = [f"{i}: {p['title']} — {p['price_raw']}" for i,
              p in enumerate(priced_sources)]
@@ -87,13 +87,16 @@ async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> li
 Target bag identified as: "{first_title}"
 
 Below are search results with titles and prices.
-Return ONLY the numbers of listings that are the EXACT same bag.
+Return ONLY the numbers of listings that are the EXACT same bag and also could be used for pricing reference.
 
 Rules:
-- Different names can refer to the same bag (e.g. "Mini Kelly II" = "Mini Kelly 20", "Classic Flap" = "2.55") — use your knowledge to match them
-- ONLY reject if you are confident it is a different size, model, or brand
+- EXACT match = same brand, model, size → include
+- CLOSE match = same brand, same material/variant (e.g. Himalaya Crocodile), different size → include (useful for pricing reference)
+- REJECT only if completely different brand or completely unrelated model
+- REJECT: blog posts, guides, "how to buy" articles with no specific listing price
 - When in doubt, INCLUDE it
-- Ignore blog posts, guides, or category pages
+
+The goal is to gather as many relevant price data points as possible for accurate valuation.
 
 Reply with only comma-separated numbers. If none match, reply "none".
 
@@ -113,13 +116,17 @@ Results:
             result = res.json()["choices"][0]["message"]["content"].strip()
             print(f"[ai_filter] kept: {result}")
             if result.lower() == "none":
-                return []
+                print("[ai_filter] none matched — passing as silent reference only")
+                return [], priced_sources
             indices = [int(x.strip())
                        for x in result.split(",") if x.strip().isdigit()]
-            return [priced_sources[i] for i in indices if i < len(priced_sources)]
+            matched = [priced_sources[i]
+                       for i in indices if i < len(priced_sources)]
+            return matched, []
+
     except Exception as e:
         print(f"[ai_filter] failed: {e} — returning all")
-        return priced_sources
+        return priced_sources, []
 
 # ─────────────────────────────────────────
 # STEP 1 — upload image to get public URL
@@ -159,7 +166,7 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
             "https://serpapi.com/search",
             params={
                 "engine": "google_lens",
-                "url": image_url,
+                "url": lens_url,
                 "api_key": SERP_API_KEY,
             }
         )
@@ -184,6 +191,7 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
 
     logger.info(
         f"[get_lens_prices] Found {len(priced_sources)} priced results")
+    priced_sources = priced_sources[:25]
     return priced_sources
 
 # ─────────────────────────────────────────
@@ -196,25 +204,13 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
 
     priced_sources = await get_lens_prices(photo_b64, photo_mime, image_url)
 
-    # TRUSTED_SOURCES = [
-    #     "vestiaire", "therealreal", "1stdibs", "rebag", "fashionphile",
-    #     "madisonavenuecouture", "baghunter", "collector-square", "sothebys",
-    #     "christies", "bonhams", "saclab", "priveporter", "mightychic",
-    #     "jewelsaficionado", "janefinds", "luxaddicts", "sellierknightsbridge",
-    #     "theluxurycloset", "annsfabulousfinds", "revolve"
-    # ]
+    print(f"[pre-filter] {len(priced_sources)} priced sources:")
+    for i, p in enumerate(priced_sources):
+        print(f"  {i}: {p['source']} | {p['title']} | {p['price_raw']}")
 
-    # # filter to trusted sources only
-    # priced_sources = [
-    #     p for p in priced_sources
-    #     if any(site in p["source"] for site in TRUSTED_SOURCES)
-    # ]
-    # print(f"[trusted filter] {len(priced_sources)} sources after trust filter")
-
-    # use image_search_query as reference if available, else fall back to first title
     reference = image_search_query if image_search_query else (
         priced_sources[0]["title"] if priced_sources else "")
-    priced_sources = await ai_filter_priced_sources(priced_sources, reference)
+    priced_sources, reference_sources = await ai_filter_priced_sources(priced_sources, reference)
 
     prices = []
     for item in priced_sources:
@@ -262,5 +258,6 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
         "resale_price": resale_price,
         "data_points": total,
         "valuation_status": status,
-        "sources": sorted(prices, key=lambda x: x["eur"])
+        "sources": sorted(prices, key=lambda x: x["eur"]),
+        "reference_sources": reference_sources
     }
