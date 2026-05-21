@@ -117,6 +117,7 @@ async def get_price(req: ConfirmBagRequest):
 class ImageUrlRequest(BaseModel):
     image_url: str
     image_search_query: str = ""
+    purchase_price: Optional[float] = None
 
 
 @router.post("/bags/price/by-image")
@@ -133,7 +134,8 @@ async def price_by_image(req: ImageUrlRequest):
     result = await get_full_valuation_from_image(
         photo_b64=b64,
         photo_mime=mime,
-        image_search_query=req.image_search_query
+        image_search_query=req.image_search_query,
+        purchase_price=req.purchase_price
     )
     return {"status": 200, "success": True, "data": result}
 
