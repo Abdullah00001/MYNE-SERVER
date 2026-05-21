@@ -1,6 +1,5 @@
 import re
 import json
-from turtle import title
 import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
