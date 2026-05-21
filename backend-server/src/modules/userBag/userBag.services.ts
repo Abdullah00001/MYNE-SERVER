@@ -471,7 +471,7 @@ export class UserBagService {
         const plainResponse = await axios.post(
           `${env.AI_SERVER_URL}/bags/price/by-image`,
           {
-            image_url: (collection.brandId as IBrand).brandName,
+            image_url: collection.primaryImage,
             image_search_query: collection.imageSearchQuery,
           }
         );
