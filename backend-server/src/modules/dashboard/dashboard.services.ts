@@ -11,6 +11,7 @@ import { TDashboardStatsQueryParamsSchema } from '@/modules/dashboard/dashboard.
 import { TrendEnum } from '@/modules/adminBag/adminBag.types';
 import { JwtPayload } from 'jsonwebtoken';
 import { IUser } from '@/modules/auth/auth.types';
+import { PublishStatus } from '@/modules/userBag/userBag.types';
 @injectable()
 export class DashboardService {
   async adminDashboardStat({
@@ -269,7 +270,14 @@ export class DashboardService {
 
       // ─── Totals + trend aggregation — only user bags (isAdmin: false) ────────
       const [summary] = await UserCollection.aggregate([
-        { $match: { isArchived: false, isAdmin: false, userId } },
+        {
+          $match: {
+            isArchived: false,
+            isAdmin: false,
+            userId,
+            publishStatus: PublishStatus.PUBLISHED,
+          },
+        },
         {
           $group: {
             _id: null,
