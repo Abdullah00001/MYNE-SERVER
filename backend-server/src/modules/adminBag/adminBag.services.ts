@@ -29,12 +29,14 @@ import {
   IUserBag,
   IYearValue,
   PublishStatus,
+  ValuationResponse,
 } from '@/modules/userBag/userBag.types';
 import Brand from '@/modules/brand/brand.model';
 import ModelModel from '@/modules/model/model.model';
 import { monthNameMap } from '@/const';
 import { IBrand } from '@/modules/brand/brand.types';
 import { IModel } from '@/modules/model/model.types';
+import { getRedisClient } from '@/configs/redis.config';
 
 @injectable()
 export class AdminBagService {
@@ -107,7 +109,14 @@ export class AdminBagService {
       const currency: Currency = aiData?.currency ?? null;
 
       /* ---------------------------- priceStatus build --------------------------- */
-
+      const marketSources: {
+        eur: number;
+        original: number;
+        currency: string;
+        source: string;
+        url: string;
+        title: string;
+      }[] = aiData?.market_sources?.Search_Results || [];
       aiFields.priceStatus = {
         trend: aiData?.trend ?? null,
         changePercentage: aiData?.change_percentage ?? null,
@@ -162,7 +171,10 @@ export class AdminBagService {
         userId: new Types.ObjectId(user._id as string),
       });
       await newAdminBag.save();
-      return newAdminBag;
+      return {
+        ...newAdminBag,
+        marketSources: marketSources.map((item) => item.url),
+      };
     } catch (error) {
       await this.s3Utils.singleDelete({ key });
       if (error instanceof Error) throw error;
@@ -445,25 +457,65 @@ export class AdminBagService {
           },
         },
       ]);
+      const redisClient = getRedisClient();
       if (!result) throw new Error('Bag not found');
-      const plainResponse = await axios.post(
-        `${env.AI_SERVER_URL}/bags/price/by-image`,
-        {
-          image_url: collection.primaryImage,
-          image_search_query: collection.imageSearchQuery,
-          purchase_price: collection.purchasePrice,
-        }
+      let aiResponsePayload: ValuationResponse;
+      const cacheAiResponse = await redisClient.get(
+        `bag-price-${collection._id}`
       );
-      const aiResponsePayload = plainResponse.data?.data;
+      if (cacheAiResponse) {
+        aiResponsePayload = JSON.parse(cacheAiResponse) as ValuationResponse;
+      } else {
+        const plainResponse = await axios.post(
+          `${env.AI_SERVER_URL}/bags/price/by-image`,
+          {
+            image_url: collection.primaryImage,
+            image_search_query: collection.imageSearchQuery,
+            purchase_price: collection.purchasePrice,
+          }
+        );
+        const freshAiResponsePayload = plainResponse.data?.data;
+        // Cache the AI response for 24 hours
+        await redisClient.set(
+          `bag-price-${collection._id}`,
+          JSON.stringify(freshAiResponsePayload),
+          'PX',
+          24 * 60 * 60 * 1000
+        );
+        aiResponsePayload = freshAiResponsePayload;
+      }
+      const marketSources: {
+        eur: number;
+        original: number;
+        currency: string;
+        source: string;
+        url: string;
+        title: string;
+      }[] = aiResponsePayload?.market_sources?.Search_Results || [];
       const allSites =
         aiResponsePayload?.sources_used?.flatMap(
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
-
+      const priceStatus = {
+        trend: aiResponsePayload?.trend ?? null,
+        changePercentage: aiResponsePayload?.change_percentage ?? null,
+        currentMinValue: aiResponsePayload?.price_range?.min ?? null,
+        currentMaxValue: aiResponsePayload?.price_range?.max ?? null,
+        currency: aiResponsePayload?.currency ?? null,
+        fetchedAt: new Date().toISOString(),
+      };
       return {
         ...result,
-        aiSuggestedPrice: aiResponsePayload?.current_value,
+        aiSuggestedPrice:
+          Math.round(
+            (((priceStatus.currentMinValue ?? 0) +
+              (priceStatus.currentMaxValue ?? 0)) /
+              2) *
+              100
+          ) / 100,
+        priceStatus,
         source: allSites,
+        marketSources: marketSources.map((item) => item.url),
       };
     } catch (error) {
       if (error instanceof Error) throw error;

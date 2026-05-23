@@ -1427,6 +1427,14 @@ export class UserBagService {
       };
       console.log(priceStatus);
       // ai suggested price will be median of currentMinValue and currentMaxValue, rounded to 2 decimals.
+      const marketSources: {
+        eur: number;
+        original: number;
+        currency: string;
+        source: string;
+        url: string;
+        title: string;
+      }[] = aiResponsePayload?.market_sources?.Search_Results || [];
       return {
         ...result,
         aiSuggestedPrice:
@@ -1438,6 +1446,7 @@ export class UserBagService {
           ) / 100,
         priceStatus,
         source: allSites,
+        marketSources: marketSources.map((item) => item.url),
       };
     } catch (error) {
       if (error instanceof Error) throw error;
