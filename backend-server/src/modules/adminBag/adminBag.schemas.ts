@@ -25,10 +25,56 @@ export const CreateAdminBagSchema = z.object({
     }),
 
   // Bag properties
-  bagColor: z
-    .union([z.string(), z.array(z.string())])
-    .transform((val) => (Array.isArray(val) ? val : [val]))
-    .pipe(z.array(z.string().min(1))),
+  bagColor: z.array(
+    z
+      .string({
+        error: 'Bag color is required',
+      })
+      .min(1, {
+        error: 'Bag color cannot be empty',
+      })
+  ),
+  hardwareColor: z
+    .string({
+      error: 'Bag hardware color is required',
+    })
+    .min(1, {
+      error: 'Bag hardware color cannot be empty',
+    }),
+  wearChecklist: z
+    .array(
+      z
+        .string({
+          error: 'Each wear checklist item must be a string',
+        })
+        .min(1, {
+          error: 'Wear checklist items cannot be empty',
+        })
+    )
+    .optional(),
+  size: z
+    .string({
+      error: 'Size is required',
+    })
+    .min(1, {
+      error: 'Size cannot be empty',
+    }),
+  yearsOfBag: z.string().nullable(),
+  // Production year - COERCED from string to number for form-data
+  // productionYear: z.coerce
+  //   .number({
+  //     error: 'Production year must be a number',
+  //   })
+  //   .int({
+  //     error: 'Production year must be an integer',
+  //   })
+  //   .min(1900, {
+  //     error: 'Production year must be 1900 or later',
+  //   })
+  //   .max(new Date().getFullYear() + 1, {
+  //     error: `Production year cannot exceed ${new Date().getFullYear() + 1}`,
+  //   }),
+
   material: z
     .string({
       error: 'Leather type is required',
@@ -43,22 +89,7 @@ export const CreateAdminBagSchema = z.object({
     .min(1, {
       error: 'Variant cannot be empty',
     }),
-
-  hardwareColor: z
-    .string({
-      error: 'Bag hardware color is required',
-    })
-    .min(1, {
-      error: 'Bag hardware color cannot be empty',
-    }),
-
-  size: z
-    .string({
-      error: 'Size is required',
-    })
-    .min(1, {
-      error: 'Size cannot be empty',
-    }),
+  // Condition of the bag
   condition: z
     .string({
       error: 'Condition is required',
