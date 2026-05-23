@@ -1435,6 +1435,7 @@ export class UserBagService {
         url: string;
         title: string;
       }[] = aiResponsePayload?.market_sources?.Search_Results || [];
+      console.log(marketSources);
       return {
         ...result,
         aiSuggestedPrice:

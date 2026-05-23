@@ -504,6 +504,7 @@ export class AdminBagService {
         currency: aiResponsePayload?.currency ?? null,
         fetchedAt: new Date().toISOString(),
       };
+      console.log(marketSources);
       return {
         ...result,
         aiSuggestedPrice:
