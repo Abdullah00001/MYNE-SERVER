@@ -8,6 +8,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────
+# PRIORITY SITES
+# ─────────────────────────────────────────
+
+PRIORITY_SITES = [
+    "madisonavenuecouture.com",
+    "vestiairecollective.com",
+    "therealreal.com",
+    "sothebys.com",
+    "fashionphile.com"
+    # add more here
+]
+
+# ─────────────────────────────────────────
 # EXCHANGE RATES
 # ─────────────────────────────────────────
 
@@ -195,6 +208,47 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
     return priced_sources
 
 # ─────────────────────────────────────────
+# STEP 2b — Search priority sites directly
+# ─────────────────────────────────────────
+
+
+async def search_priority_sites(query: str) -> list[dict]:
+    """Search PRIORITY_SITES directly via Google using the bag query."""
+    if not query:
+        return []
+    site_filter = " OR ".join(f"site:{s}" for s in PRIORITY_SITES)
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.get(
+                "https://serpapi.com/search",
+                params={
+                    "engine": "google",
+                    "q": f"({site_filter}) {query}",
+                    "api_key": SERP_API_KEY,
+                    "num": 10,
+                }
+            )
+            res.raise_for_status()
+            results = []
+            for r in res.json().get("organic_results", []):
+                link = r.get("link", "")
+                snippet = r.get("snippet", "") + " " + r.get("title", "")
+                price = extract_price(snippet)
+                domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+                if price and link:
+                    results.append({
+                        "title": r.get("title", ""),
+                        "price_raw": snippet,
+                        "url": link,
+                        "source": domain.group(1) if domain else "unknown"
+                    })
+            logger.info(f"[priority_sites] Found {len(results)} results")
+            return results
+    except Exception as e:
+        logger.warning(f"[priority_sites] Failed: {e}")
+        return []
+
+# ─────────────────────────────────────────
 # STEP 3 — parse, clean, return
 # ─────────────────────────────────────────
 
@@ -202,14 +256,23 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
 async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_query: str = "", image_url: str = "") -> dict:
     await refresh_rates()
 
-    priced_sources = await get_lens_prices(photo_b64, photo_mime, image_url)
+    # Run Lens + priority site search concurrently
+    reference = image_search_query
+    lens_task = get_lens_prices(photo_b64, photo_mime, image_url)
+    priority_task = search_priority_sites(reference)
+    lens_sources, priority_sources = await asyncio.gather(lens_task, priority_task)
 
-    print(f"[pre-filter] {len(priced_sources)} priced sources:")
+    # Priority sources go first so AI filter and dedup favour them
+    priced_sources = priority_sources + lens_sources
+
+    print(
+        f"[pre-filter] {len(priced_sources)} priced sources ({len(priority_sources)} priority, {len(lens_sources)} lens):")
     for i, p in enumerate(priced_sources):
         print(f"  {i}: {p['source']} | {p['title']} | {p['price_raw']}")
 
-    reference = image_search_query if image_search_query else (
-        priced_sources[0]["title"] if priced_sources else "")
+    if not reference and lens_sources:
+        reference = lens_sources[0]["title"]
+
     priced_sources, reference_sources = await ai_filter_priced_sources(priced_sources, reference)
 
     prices = []
@@ -229,20 +292,33 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
         })
         print(f"[price] {item['source']} → {symbol}{price} = €{eur}")
 
-    # deduplicate by domain
+    # deduplicate by domain (priority sources were prepended so they win dedup)
     seen = {}
     for p in prices:
         if p["source"] not in seen:
             seen[p["source"]] = p
     prices = list(seen.values())
 
-    # compute median
+    # compute most common price cluster
     if prices:
         sorted_prices = sorted(prices, key=lambda x: x["eur"])
-        n = len(sorted_prices)
-        resale_price = round(
-            (sorted_prices[n//2-1]["eur"] + sorted_prices[n//2]["eur"]) / 2, 2
-        ) if n % 2 == 0 else round(sorted_prices[n//2]["eur"], 2)
+
+        # group prices within 10% of each other
+        clusters = []
+        for p in sorted_prices:
+            placed = False
+            for cluster in clusters:
+                if abs(p["eur"] - cluster[0]["eur"]) / cluster[0]["eur"] < 0.15:
+                    cluster.append(p)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([p])
+
+        # pick the cluster with the most sources
+        best_cluster = max(clusters, key=lambda c: len(c))
+        resale_price = round(sum(p["eur"]
+                             for p in best_cluster) / len(best_cluster), 2)
     else:
         resale_price = None
 
