@@ -303,7 +303,7 @@ async def get_full_valuation(
     }
 
 
-def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[float]:
+def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[float | None]:
     if not prices:
         return prices
 
@@ -320,38 +320,45 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
             corrected.append(p)
     prices = corrected
 
-    # ── NOW check spread (after typos are fixed) ─────────────────
+    # ── Check spread ─────────────────────────────────────────────
     sorted_p = sorted(prices)
     spread_ratio = sorted_p[-1] / sorted_p[0] if sorted_p[0] > 0 else 1
     if spread_ratio > 3:
         print(
-            f"[outlier] High spread ({spread_ratio:.1f}x) — mixed variants, using GPT estimate only")
+            f"[outlier] High spread ({spread_ratio:.1f}x) — using GPT estimate only")
         if gpt_estimate and gpt_estimate > 0:
-            return [p for p in prices if 0.4 * gpt_estimate <= p <= 1.6 * gpt_estimate]
+            # None = drop this price, keep index alignment
+            return [p if 0.4 * gpt_estimate <= p <= 1.6 * gpt_estimate else None for p in prices]
         return prices
 
-    # ── IQR-based outlier removal ────────────────────────────────
+    # ── IQR ──────────────────────────────────────────────────────
     if len(prices) >= 4:
         q1 = sorted_p[len(sorted_p) // 4]
         q3 = sorted_p[(3 * len(sorted_p)) // 4]
         iqr = q3 - q1
         lower = q1 - 1.5 * iqr
         upper = q3 + 1.5 * iqr
-        filtered = [p for p in prices if lower <= p <= upper]
+        filtered = [p if lower <= p <= upper else None for p in prices]
     else:
         median = sorted_p[len(sorted_p) // 2]
-        filtered = [p for p in prices if 0.6 * median <= p <= 1.4 * median]
+        filtered = [p if 0.6 * median <= p <=
+                    1.4 * median else None for p in prices]
 
     # ── GPT cross-check ──────────────────────────────────────────
     if gpt_estimate and gpt_estimate > 0:
-        filtered = [p for p in filtered if 0.4 *
-                    gpt_estimate <= p <= 1.6 * gpt_estimate]
+        filtered = [
+            p if (p is not None and 0.4 * gpt_estimate <=
+                  p <= 1.6 * gpt_estimate) else None
+            for p in filtered
+        ]
 
-    dropped = set(prices) - set(filtered)
+    dropped = [prices[i] for i, p in enumerate(filtered) if p is None]
     if dropped:
-        print(f"[outlier] Dropped: {dropped} | Kept: {filtered}")
+        print(f"[outlier] Dropped: {dropped}")
 
-    return filtered if filtered else prices
+    # Never return all-None — fall back to corrected prices
+    valid = [p for p in filtered if p is not None]
+    return filtered if valid else prices
 
 
 async def get_full_valuation_from_image(
@@ -372,11 +379,19 @@ async def get_full_valuation_from_image(
     # ── Clean sources EARLY, before anything else sees them ──────
     if sources:
         raw_prices = [s["eur"] for s in sources]
-        clean_prices = filter_outliers(raw_prices)  # no GPT estimate yet
-        # Rebuild sources list keeping only clean prices
-        sources = [s for s in sources if s["eur"] in clean_prices]
-        # Recalculate resale_price (median) from clean data
-        sorted_clean = sorted(clean_prices)
+        clean_prices = filter_outliers(raw_prices)
+
+        # pair each source with its corrected price
+        sources = [
+            {**s, "eur": clean_prices[i]}   # overwrite with corrected price
+            for i, s in enumerate(sources)
+            if clean_prices[i] is not None   # None means dropped
+        ]
+
+        sorted_clean = sorted([s["eur"] for s in sources])
+        resale_price = sorted_clean[len(sorted_clean) // 2]
+
+        sorted_clean = sorted([s["eur"] for s in sources])
         resale_price = sorted_clean[len(sorted_clean) // 2]
 
     # Step 2 — GPT estimates final value from those prices
