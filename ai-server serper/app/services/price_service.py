@@ -304,19 +304,13 @@ async def get_full_valuation(
 
 
 def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[float]:
-    """
-    Remove statistical outliers from a price list using IQR method.
-    Falls back to median-based filtering if too few data points.
-    Also catches classic 10x website typos (e.g. 3150 instead of 31500).
-    """
     if not prices:
         return prices
 
-    # ── Fix 10x typos first ──────────────────────────────────────
-    # If a price * 10 is close to the median, it's almost certainly a decimal bug
     sorted_p = sorted(prices)
-    median = sorted_p[len(sorted_p) // 2]
 
+    # ── Fix 10x typos FIRST ──────────────────────────────────────
+    median = sorted_p[len(sorted_p) // 2]
     corrected = []
     for p in prices:
         if p * 10 > median * 0.7 and p * 10 < median * 1.3:
@@ -326,24 +320,29 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
             corrected.append(p)
     prices = corrected
 
+    # ── NOW check spread (after typos are fixed) ─────────────────
+    sorted_p = sorted(prices)
+    spread_ratio = sorted_p[-1] / sorted_p[0] if sorted_p[0] > 0 else 1
+    if spread_ratio > 3:
+        print(
+            f"[outlier] High spread ({spread_ratio:.1f}x) — mixed variants, using GPT estimate only")
+        if gpt_estimate and gpt_estimate > 0:
+            return [p for p in prices if 0.4 * gpt_estimate <= p <= 1.6 * gpt_estimate]
+        return prices
+
     # ── IQR-based outlier removal ────────────────────────────────
     if len(prices) >= 4:
-        sorted_p = sorted(prices)
         q1 = sorted_p[len(sorted_p) // 4]
         q3 = sorted_p[(3 * len(sorted_p)) // 4]
         iqr = q3 - q1
         lower = q1 - 1.5 * iqr
         upper = q3 + 1.5 * iqr
         filtered = [p for p in prices if lower <= p <= upper]
-
-    # ── Median ±40% fallback (for small datasets) ────────────────
     else:
-        sorted_p = sorted(prices)
         median = sorted_p[len(sorted_p) // 2]
         filtered = [p for p in prices if 0.6 * median <= p <= 1.4 * median]
 
-    # ── GPT cross-check (if estimate available) ──────────────────
-    # Drop anything further than 60% from GPT's own estimate
+    # ── GPT cross-check ──────────────────────────────────────────
     if gpt_estimate and gpt_estimate > 0:
         filtered = [p for p in filtered if 0.4 *
                     gpt_estimate <= p <= 1.6 * gpt_estimate]
@@ -352,7 +351,7 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
     if dropped:
         print(f"[outlier] Dropped: {dropped} | Kept: {filtered}")
 
-    return filtered if filtered else prices  # never return empty list
+    return filtered if filtered else prices
 
 
 async def get_full_valuation_from_image(
