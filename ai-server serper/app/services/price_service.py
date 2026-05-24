@@ -303,6 +303,58 @@ async def get_full_valuation(
     }
 
 
+def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[float]:
+    """
+    Remove statistical outliers from a price list using IQR method.
+    Falls back to median-based filtering if too few data points.
+    Also catches classic 10x website typos (e.g. 3150 instead of 31500).
+    """
+    if not prices:
+        return prices
+
+    # ── Fix 10x typos first ──────────────────────────────────────
+    # If a price * 10 is close to the median, it's almost certainly a decimal bug
+    sorted_p = sorted(prices)
+    median = sorted_p[len(sorted_p) // 2]
+
+    corrected = []
+    for p in prices:
+        if p * 10 > median * 0.7 and p * 10 < median * 1.3:
+            print(f"[outlier] Auto-correcting likely typo: {p} → {p * 10}")
+            corrected.append(p * 10)
+        else:
+            corrected.append(p)
+    prices = corrected
+
+    # ── IQR-based outlier removal ────────────────────────────────
+    if len(prices) >= 4:
+        sorted_p = sorted(prices)
+        q1 = sorted_p[len(sorted_p) // 4]
+        q3 = sorted_p[(3 * len(sorted_p)) // 4]
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        filtered = [p for p in prices if lower <= p <= upper]
+
+    # ── Median ±40% fallback (for small datasets) ────────────────
+    else:
+        sorted_p = sorted(prices)
+        median = sorted_p[len(sorted_p) // 2]
+        filtered = [p for p in prices if 0.6 * median <= p <= 1.4 * median]
+
+    # ── GPT cross-check (if estimate available) ──────────────────
+    # Drop anything further than 60% from GPT's own estimate
+    if gpt_estimate and gpt_estimate > 0:
+        filtered = [p for p in filtered if 0.4 *
+                    gpt_estimate <= p <= 1.6 * gpt_estimate]
+
+    dropped = set(prices) - set(filtered)
+    if dropped:
+        print(f"[outlier] Dropped: {dropped} | Kept: {filtered}")
+
+    return filtered if filtered else prices  # never return empty list
+
+
 async def get_full_valuation_from_image(
     photo_b64: str,
     photo_mime: str,
@@ -317,6 +369,16 @@ async def get_full_valuation_from_image(
     resale_price = market.get("resale_price") or 0
     sources = market.get("sources", [])
     reference_sources = market.get("reference_sources", [])
+
+    # ── Clean sources EARLY, before anything else sees them ──────
+    if sources:
+        raw_prices = [s["eur"] for s in sources]
+        clean_prices = filter_outliers(raw_prices)  # no GPT estimate yet
+        # Rebuild sources list keeping only clean prices
+        sources = [s for s in sources if s["eur"] in clean_prices]
+        # Recalculate resale_price (median) from clean data
+        sorted_clean = sorted(clean_prices)
+        resale_price = sorted_clean[len(sorted_clean) // 2]
 
     # Step 2 — GPT estimates final value from those prices
     title = image_search_query if image_search_query else (
@@ -409,6 +471,12 @@ async def get_full_valuation_from_image(
     # override price_range with actual values from sources
     if sources:
         prices_eur = [s["eur"] for s in sources]
+
+        # ── Clean before using ───────────────────────────────────
+        gpt_estimate = gpt_result.get("current_value")
+        prices_eur = filter_outliers(prices_eur, gpt_estimate)
+        # ────────────────────────────────────────────────────────
+
         gpt_result["price_range"] = {
             "min": min(prices_eur),
             "max": max(prices_eur)
@@ -441,7 +509,7 @@ async def get_full_valuation_from_image(
 
     return {
         **gpt_result,
-        "data_points": market.get("data_points", 0),
+        "data_points": len(sources),
         "sources_used": [{"type": "Organic Search", "sites": [s["source"] for s in sources]}],
         "market_sources": {"Search_Results": sources},
         "change_percentage": change_percentage,
