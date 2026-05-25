@@ -901,6 +901,7 @@ export class UserBagService {
                 $project: {
                   _id: 1,
                   primaryImage: 1,
+                  thumbnailImage: 1,
                   images: 1,
                   priceStatus: 1,
                   isArchived: 1,
