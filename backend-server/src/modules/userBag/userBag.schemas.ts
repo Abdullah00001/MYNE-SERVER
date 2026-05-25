@@ -285,6 +285,7 @@ export const baseUpdateSchema = z.object({
 
   notes: z.union([z.string(), z.null()]).optional(),
   primaryImage: z.url('Primary image must be a valid URL').optional(),
+  thumbnailImage: z.url('Thumbnail image must be a valid URL').optional(),
   images: z.preprocess(
     (val) => (val === '' || val === null ? undefined : val),
     z

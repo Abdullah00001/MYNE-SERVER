@@ -112,6 +112,7 @@ const UserCollectionSchema = new Schema<IUserBag>(
       enum: PublishStatus,
       default: PublishStatus.PENDING,
     },
+    thumbnailImage: { type: String, default: null },
     imageSearchQuery: { type: String, default: null },
     isAdmin:{type:Boolean,default:false},
     specialVariant: { type: String, default: null },

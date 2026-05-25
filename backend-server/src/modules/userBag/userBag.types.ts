@@ -38,6 +38,7 @@ export interface IUserBag {
   updatedAt: Date;
   _id: Types.ObjectId;
   primaryImage: string;
+  thumbnailImage: string;
   images: string[];
   bagColor: string[];
   material: string;
