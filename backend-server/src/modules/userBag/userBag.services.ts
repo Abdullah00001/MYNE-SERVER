@@ -538,6 +538,7 @@ export class UserBagService {
       );
       if (!data)
         throw new Error('Something went wrong while updating the collection');
+      console.log(data);
       return data;
     } catch (error) {
       if (error instanceof Error) throw error;
@@ -937,6 +938,7 @@ export class UserBagService {
       ]);
 
       const data = result.collections || [];
+      console.log(data);
       const metaData = result.metadata[0] || {
         _id: null,
         totalBags: 0,
