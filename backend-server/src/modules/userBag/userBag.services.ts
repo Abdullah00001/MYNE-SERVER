@@ -1405,6 +1405,7 @@ export class UserBagService {
           }
         );
         const freshAiResponsePayload = plainResponse.data?.data;
+        console.log(freshAiResponsePayload);
         // Cache the AI response for 24 hours
         await redisClient.set(
           `bag-price-${collection._id}`,
