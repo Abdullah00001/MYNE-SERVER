@@ -36,6 +36,7 @@ export class DashboardController extends BaseController {
     const user =req.user as IUser;
     const { year } = req.query as { year?: string };
     const data=await this.dashboardService.appDashboardStat({user,year});
+    console.log("app dashboard data: ",data);
     res.status(200).json({
       success: true,
       status: 200,
