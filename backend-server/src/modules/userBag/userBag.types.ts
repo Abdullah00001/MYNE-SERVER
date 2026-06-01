@@ -124,6 +124,8 @@ interface MarketSearchResult {
   source: string;
   url: string;
   title: string;
+  country: string;
+  condition: string;
 }
 
 interface MarketSources {

@@ -1438,6 +1438,8 @@ export class UserBagService {
         source: string;
         url: string;
         title: string;
+        country: string;
+        condition: string;
       }[] = aiResponsePayload?.market_sources?.Search_Results || [];
       console.log(marketSources);
       return {
@@ -1451,7 +1453,7 @@ export class UserBagService {
           ) / 100,
         priceStatus,
         source: allSites,
-        marketSources: marketSources.map((item) => item.url),
+        marketSources,
       };
     } catch (error) {
       if (error instanceof Error) throw error;
