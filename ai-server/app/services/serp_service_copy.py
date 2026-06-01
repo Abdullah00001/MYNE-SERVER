@@ -1,7 +1,6 @@
 import re
 import httpx
 import asyncio
-from typing import Dict, Any
 from app.config import OPENAI_API_KEY, SERP_API_KEY
 
 import logging
@@ -21,9 +20,66 @@ PRIORITY_SITES = [
 ]
 
 # ─────────────────────────────────────────
-# EXCHANGE RATES
+# Domain SITES
 # ─────────────────────────────────────────
 
+
+DOMAIN_COUNTRY = {
+    "madisonavenuecouture.com": "🇺🇸 USA",
+    "vestiairecollective.com": "🇫🇷 France",
+    "therealreal.com": "🌐 Global",
+    "sothebys.com": "🌐 Global",
+    "fashionphile.com": "🇺🇸 USA",
+    "1stdibs.com": "🌐 Global",
+    "ebay.com": "🌐 Global",
+    "ebay.co.uk": "🇬🇧 UK",
+    "ebay.de": "🇩🇪 Germany",
+    "ebay.fr": "🇫🇷 France",
+    "chrisbella.com": "🇬🇧 UK",
+    "tradesy.com": "🇺🇸 USA",
+    "rebag.com": "🇺🇸 USA",
+    "luxepolis.com": "🇮🇳 India",
+    "collector-square.com": "🇫🇷 France",
+    "sacprimeur.com": "🇫🇷 France",
+    "bagborroworsteal.com": "🇺🇸 USA",
+
+    # Global
+    "jamesedition.com": "🌐 Global",
+    "catawiki.com": "🌐 Global",
+    "christies.com": "🌐 Global",
+    "bonhams.com": "🌐 Global",
+
+    # US
+    "poshmark.com": "🇺🇸 USA",
+    "yoogi.com": "🇺🇸 USA",
+    "portero.com": "🇺🇸 USA",
+    "tradesy.com": "🇺🇸 USA",
+
+    # UK
+    "sellmybag.co.uk": "🇬🇧 UK",
+    "designerexchange.co.uk": "🇬🇧 UK",
+    "hardly-ever-worn-it.com": "🇬🇧 UK",
+
+    # France / Europe
+    "videdressing.com": "🇫🇷 France",
+    "collector-square.com": "🇫🇷 France",
+
+    # Japan (huge luxury resale market)
+    "brandoff.jp": "🇯🇵 Japan",
+    "komehyo.jp": "🇯🇵 Japan",
+}
+
+
+def get_country(domain: str) -> str:
+    for key, country in DOMAIN_COUNTRY.items():
+        if key in domain:
+            return country
+    return "🌐 Global"
+
+
+# ─────────────────────────────────────────
+# EXCHANGE RATES
+# ─────────────────────────────────────────
 _rate_cache = {
     "rates": {"USD": 0.92, "GBP": 1.17, "JPY": 0.0062, "CNY": 0.13},
     "last_updated": None
@@ -70,6 +126,25 @@ def to_eur(price: float, symbol: str) -> float:
         return round(price, 2)
     rate = _rate_cache["rates"].get(currency, 1.0)
     return round(price * rate, 2)
+
+
+def extract_condition(text: str) -> str:
+    text_lower = text.lower()
+    if any(x in text_lower for x in ["pristine", "never worn", "brand new", "new with tags", "unworn"]):
+        return "New"
+    if "excellent" in text_lower:
+        return "Excellent"
+    if "very good" in text_lower:
+        return "Very Good"
+    if "good" in text_lower:
+        return "Good"
+    if "fair" in text_lower:
+        return "Fair"
+    if "poor" in text_lower:
+        return "Poor"
+    if any(x in text_lower for x in ["pre-owned", "preowned", "used"]):
+        return "Pre-owned"
+    return "Unknown"
 
 
 def extract_price(text) -> float | None:
@@ -128,9 +203,11 @@ Results:
             )
             result = res.json()["choices"][0]["message"]["content"].strip()
             print(f"[ai_filter] kept: {result}")
+
             if result.lower() == "none":
                 print("[ai_filter] none matched — passing as silent reference only")
                 return [], priced_sources
+
             indices = [int(x.strip())
                        for x in result.split(",") if x.strip().isdigit()]
             matched = [priced_sources[i]
@@ -195,11 +272,13 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
         if not price_raw or not link:
             continue
         domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+        domain_str = domain.group(1) if domain else "unknown"
         priced_sources.append({
             "title": m.get("title", ""),
             "price_raw": str(price_raw),
             "url": link,
-            "source": domain.group(1) if domain else "unknown"
+            "source": domain_str,
+            "country": get_country(domain_str)
         })
 
     logger.info(
@@ -235,12 +314,14 @@ async def search_priority_sites(query: str) -> list[dict]:
                 snippet = r.get("snippet", "") + " " + r.get("title", "")
                 price = extract_price(snippet)
                 domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+                domain_str = domain.group(1) if domain else "unknown"
                 if price and link:
                     results.append({
                         "title": r.get("title", ""),
                         "price_raw": snippet,
                         "url": link,
-                        "source": domain.group(1) if domain else "unknown"
+                        "source": domain_str,
+                        "country": get_country(domain_str)
                     })
             logger.info(f"[priority_sites] Found {len(results)} results")
             return results
@@ -288,7 +369,9 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
             "currency": symbol,
             "source": item["source"],
             "url": item["url"],
-            "title": item["title"]
+            "title": item["title"],
+            "country": item.get("country", "Global"),
+            "condition": extract_condition(item["title"] + " " + item["price_raw"])
         })
         print(f"[price] {item['source']} → {symbol}{price} = €{eur}")
 
