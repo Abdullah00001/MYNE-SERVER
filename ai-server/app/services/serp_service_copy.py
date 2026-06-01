@@ -130,21 +130,28 @@ def to_eur(price: float, symbol: str) -> float:
 
 def extract_condition(text: str) -> str:
     text_lower = text.lower()
-    if any(x in text_lower for x in ["pristine", "never worn", "brand new", "new with tags", "unworn"]):
-        return "New"
-    if "excellent" in text_lower:
-        return "Excellent"
     if "very good" in text_lower:
         return "Very Good"
+    if "excellent" in text_lower:
+        return "Excellent"
     if "good" in text_lower:
         return "Good"
     if "fair" in text_lower:
         return "Fair"
     if "poor" in text_lower:
         return "Poor"
-    if any(x in text_lower for x in ["pre-owned", "preowned", "used"]):
-        return "Pre-owned"
-    return "Unknown"
+    if any(x in text_lower for x in ["never worn", "brand new", "new with tags", "unworn", "pristine"]):
+        return "New"
+    return "On website"
+
+
+async def scrape_condition(url: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            return extract_condition(res.text)
+    except:
+        return "On website"
 
 
 def extract_price(text) -> float | None:
@@ -267,6 +274,7 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
 
     priced_sources = []
     for m in data.get("visual_matches", []):
+        # print(f"[debug raw match] {m}")
         price_raw = m.get("price", {}).get("value", "")
         link = m.get("link", "")
         if not price_raw or not link:
@@ -278,7 +286,8 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
             "price_raw": str(price_raw),
             "url": link,
             "source": domain_str,
-            "country": get_country(domain_str)
+            "country": get_country(domain_str),
+            "condition_raw": m.get("condition", "")
         })
 
     logger.info(
@@ -321,7 +330,8 @@ async def search_priority_sites(query: str) -> list[dict]:
                         "price_raw": snippet,
                         "url": link,
                         "source": domain_str,
-                        "country": get_country(domain_str)
+                        "country": get_country(domain_str),
+                        "condition_raw": ""
                     })
             logger.info(f"[priority_sites] Found {len(results)} results")
             return results
@@ -356,13 +366,21 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
 
     priced_sources, reference_sources = await ai_filter_priced_sources(priced_sources, reference)
 
+    # Scrape condition concurrently for all matched sources
+    condition_tasks = [scrape_condition(item["url"])
+                       for item in priced_sources]
+    scraped_conditions = await asyncio.gather(*condition_tasks)
+
     prices = []
-    for item in priced_sources:
+    for i, item in enumerate(priced_sources):
         price = extract_price(item["price_raw"])
         if not price or price < 300:
             continue
         symbol = detect_currency_symbol(item["price_raw"])
         eur = to_eur(price, symbol)
+
+        condition = item.get("condition_raw") or scraped_conditions[i]
+
         prices.append({
             "eur": eur,
             "original": price,
@@ -371,7 +389,7 @@ async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_
             "url": item["url"],
             "title": item["title"],
             "country": item.get("country", "Global"),
-            "condition": extract_condition(item["title"] + " " + item["price_raw"])
+            "condition": condition
         })
         print(f"[price] {item['source']} → {symbol}{price} = €{eur}")
 

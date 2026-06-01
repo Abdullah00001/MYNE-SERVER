@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import OPENAI_API_KEY, SERP_API_KEY
 from app.services.brand_config import BRAND_CONFIG, get_knowledge_file
+from app.services.serp_service_copy import detect_currency_symbol, extract_price, to_eur
 
 logging.basicConfig(level=logging.INFO)
 
@@ -453,6 +454,15 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
     for i, match in enumerate(validated):
         match["imageUrl"] = image_urls[i] if i < len(image_urls) else ""
         match["thumbnailUrl"] = image_urls[i] if i < len(image_urls) else ""
+        if i == 0 and lens_data["prices"]:
+            raw = lens_data["prices"][0]  # e.g. "$25,000*"
+            price = extract_price(raw)
+            if price:
+                symbol = detect_currency_symbol(raw)
+                eur = to_eur(price, symbol)
+                match["estimatedValueEUR"] = int(eur)
+                logger.info(
+                    f"[lens_price] raw={raw} | symbol={symbol} | price={price} | eur={eur}")
     logger.info(
         f"Done in {time.time() - start_time:.2f}s | brand={brand_key} | photos={len(photos)}")
     return validated
