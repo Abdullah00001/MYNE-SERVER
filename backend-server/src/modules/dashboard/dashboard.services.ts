@@ -411,8 +411,11 @@ export class DashboardService {
         (a, b) => Number(a) - Number(b)
       );
 
+      // ─── Default to current year if none provided ───────────────────────────
+      const targetYear: string = year ?? new Date().getFullYear().toString();
+
       // ─── No year param → return available years only ────────────────────────
-      if (!year) {
+      if (!targetYear) {
         return {
           totalBags: summary?.totalBags ?? 0,
           totalPurchasePrice: parseFloat(
@@ -429,7 +432,7 @@ export class DashboardService {
       }
 
       // ─── Validate requested year ────────────────────────────────────────────
-      if (!availableYears.includes(year)) {
+      if (!availableYears.includes(targetYear)) {
         return {
           totalBags: summary?.totalBags ?? 0,
           totalPurchasePrice: parseFloat(
@@ -469,7 +472,7 @@ export class DashboardService {
           Record<string, { avg_price: number | null; currency: string | null }>
         >;
 
-        const yearData = hvObj[year];
+        const yearData = hvObj[targetYear];
         if (!yearData) continue;
 
         for (const month of MONTH_NAMES) {
