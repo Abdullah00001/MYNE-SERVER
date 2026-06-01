@@ -42,6 +42,31 @@ DOMAIN_COUNTRY = {
     "collector-square.com": "🇫🇷 France",
     "sacprimeur.com": "🇫🇷 France",
     "bagborroworsteal.com": "🇺🇸 USA",
+
+    # Global
+    "jamesedition.com": "🌐 Global",
+    "catawiki.com": "🌐 Global",
+    "christies.com": "🌐 Global",
+    "bonhams.com": "🌐 Global",
+
+    # US
+    "poshmark.com": "🇺🇸 USA",
+    "yoogi.com": "🇺🇸 USA",
+    "portero.com": "🇺🇸 USA",
+    "tradesy.com": "🇺🇸 USA",
+
+    # UK
+    "sellmybag.co.uk": "🇬🇧 UK",
+    "designerexchange.co.uk": "🇬🇧 UK",
+    "hardly-ever-worn-it.com": "🇬🇧 UK",
+
+    # France / Europe
+    "videdressing.com": "🇫🇷 France",
+    "collector-square.com": "🇫🇷 France",
+
+    # Japan (huge luxury resale market)
+    "brandoff.jp": "🇯🇵 Japan",
+    "komehyo.jp": "🇯🇵 Japan",
 }
 
 
