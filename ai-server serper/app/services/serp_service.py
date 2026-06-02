@@ -588,8 +588,31 @@ async def fetch_all_market_prices(
 
 
 async def fetch_bag_image(query: str) -> dict:
-    # All luxury resale + auction sites for clean product images
-    site_filter = " OR ".join([
+
+    BLOCKED_DOMAINS = ["facebook.com", "fbsbx.com",
+                       "instagram.com", "pinterest.com", "twitter.com", "tiktok.com"]
+
+    # Tier 1 — Official brand sites (most accurate images)
+    official_sites = " OR ".join([
+        "site:valentino.com",
+        "site:hermes.com",
+        "site:chanel.com",
+        "site:louisvuitton.com",
+        "site:gucci.com",
+        "site:prada.com",
+        "site:dior.com",
+        "site:bottegaveneta.com",
+        "site:ysl.com",
+        "site:celine.com",
+        "site:loewe.com",
+        "site:fendi.com",
+        "site:balenciaga.com",
+        "site:givenchy.com",
+        "site:miumiu.com",
+    ])
+
+    # Tier 2 — Trusted luxury resale sites
+    resale_sites = " OR ".join([
         "site:vestiaire.com",
         "site:therealreal.com",
         "site:1stdibs.com",
@@ -603,50 +626,54 @@ async def fetch_bag_image(query: str) -> dict:
         "site:bonhams.com",
         "site:labellov.com",
         "site:saclab.com",
-        "site:privéporter.com",
         "site:xupes.com",
-        "site:ginzaxiaoma.com",
-        "site:jewelsaficionado.com",
         "site:mightychic.com",
         "site:theluxurycloset.com",
     ])
-    refined_query = f"{query} {site_filter}"
+
+    async def search_images(search_query: str, num: int = 5) -> list:
+        async with httpx.AsyncClient(timeout=20) as client:
+            res = await client.post(
+                "https://google.serper.dev/images",
+                headers=SERPER_HEADERS,
+                json={"q": search_query, "num": num}
+            )
+            res.raise_for_status()
+            return res.json().get("images", [])
+
+    def pick_best(results: list) -> dict:
+        for result in results:
+            domain = result.get("domain", "")
+            if any(blocked in domain for blocked in BLOCKED_DOMAINS):
+                print(f"[fetch_bag_image] Skipping blocked domain: {domain}")
+                continue
+            thumbnail = result.get("thumbnailUrl", "")
+            image = result.get("imageUrl", "")
+            if thumbnail or image:
+                print(f"[fetch_bag_image] Found image from: {domain}")
+                return {"thumbnailUrl": thumbnail, "imageUrl": image}
+        return {}
 
     try:
-        # First attempt — trusted luxury sites only
-        async with httpx.AsyncClient(timeout=20) as client:
-            res = await client.post(
-                "https://google.serper.dev/images",
-                headers=SERPER_HEADERS,
-                json={"q": refined_query, "num": 5}
-            )
-            res.raise_for_status()
-            data = res.json()
+        # Tier 1 — Official brand sites
+        results = await search_images(f"{query} bag {official_sites}")
+        found = pick_best(results)
+        if found:
+            return found
 
-        for result in data.get("images", []):
-            thumbnail = result.get("thumbnailUrl", "")
-            image = result.get("imageUrl", "")
-            if thumbnail or image:
-                print(
-                    f"[fetch_bag_image] Found image from: {result.get('domain', 'unknown')}")
-                return {"thumbnailUrl": thumbnail, "imageUrl": image}
+        # Tier 2 — Luxury resale sites
+        print("[fetch_bag_image] No official site results, trying resale sites")
+        results = await search_images(f"{query} bag {resale_sites}")
+        found = pick_best(results)
+        if found:
+            return found
 
-        # Fallback — open search if nothing found
-        print(f"[fetch_bag_image] No results from luxury sites, trying open search")
-        async with httpx.AsyncClient(timeout=20) as client:
-            res = await client.post(
-                "https://google.serper.dev/images",
-                headers=SERPER_HEADERS,
-                json={"q": query, "num": 5}
-            )
-            res.raise_for_status()
-            data = res.json()
-
-        for result in data.get("images", []):
-            thumbnail = result.get("thumbnailUrl", "")
-            image = result.get("imageUrl", "")
-            if thumbnail or image:
-                return {"thumbnailUrl": thumbnail, "imageUrl": image}
+        # Tier 3 — Open search, but still block social media
+        print("[fetch_bag_image] No resale results, trying open search")
+        results = await search_images(f"{query} bag")
+        found = pick_best(results)
+        if found:
+            return found
 
         return {"thumbnailUrl": "", "imageUrl": ""}
 
