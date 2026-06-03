@@ -1,6 +1,4 @@
-import re
 import json
-from turtle import title
 import httpx
 from app.config import OPENAI_API_KEY
 from app.services.serp_service import fetch_all_market_prices
@@ -362,15 +360,13 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
 
 
 async def get_full_valuation_from_image(
-    photo_b64: str,
-    photo_mime: str,
+    image_url: str,
     purchase_price: float = None,
     image_search_query: str = "",
-    image_url: str = ""
 ) -> dict:
 
     # Step 1 — get prices from image
-    market = await fetch_prices_from_image(photo_b64, photo_mime, image_search_query, image_url)
+    market = await fetch_prices_from_image(image_url, image_search_query)
 
     resale_price = market.get("resale_price") or 0
     sources = market.get("sources", [])
@@ -482,19 +478,30 @@ async def get_full_valuation_from_image(
             print(
                 f"[get_full_valuation_from_image] GPT undershot — overriding with: {resale_price}")
 
-    # override price_range with actual values from sources
+# override price_range with actual values from sources
     if sources:
-        prices_eur = [s["eur"] for s in sources]
+        # 1. EXTRACT: Pull the raw prices directly from your active 'sources' list
+        prices_eur = [s["eur"] for s in sources if s.get("eur") is not None]
 
-        # ── Clean before using ───────────────────────────────────
+        # 2. FILTER: Clean outliers based on the GPT estimate if available
         gpt_estimate = gpt_result.get("current_value")
-        prices_eur = filter_outliers(prices_eur, gpt_estimate)
-        # ────────────────────────────────────────────────────────
+        filtered_prices = filter_outliers(prices_eur, gpt_estimate)
+        # 3. SANITIZE: Remove any 'None' entries dropped by filter_outliers
+        clean_prices = [p for p in filtered_prices if p is not None]
 
-        gpt_result["price_range"] = {
-            "min": min(prices_eur),
-            "max": max(prices_eur)
-        }
+        # 4. SAFE COMPUTE: Make sure we have numbers left before calling min/max
+        if clean_prices:
+            gpt_result["price_range"] = {
+                "min": min(clean_prices),
+                "max": max(clean_prices)
+            }
+        else:
+            # Fallback if everything got dropped by the outlier filter
+            gpt_result["price_range"] = {
+                "min": gpt_estimate * 0.8 if gpt_estimate else 0,
+                "max": gpt_estimate * 1.2 if gpt_estimate else 0
+            }
+
     # Step 3 — price history
     current_value = gpt_result.get("current_value", resale_price)
     history_result = await get_price_history(

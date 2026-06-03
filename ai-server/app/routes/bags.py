@@ -42,28 +42,18 @@ class ConfirmBagRequest(BaseModel):
 
 @router.post("/identify/upload")
 async def identify_upload(
+    url: str,
     user_id: str = "anonymous",
-    files: List[UploadFile] = File(...)
 ):
-    # 1. Read uploaded files → base64
-    photos = []
-    photo_mimes = []
-    for file in files:
-        contents = await file.read()
-        photos.append(base64.b64encode(contents).decode("utf-8"))
-        photo_mimes.append(file.content_type)
-
-    # 2. Call OpenAI Vision → up to 4 matches
-    matches = await identify_bag(photos, photo_mimes)
+    matches = await identify_bag(url)
     if not matches:
         raise HTTPException(status_code=422, detail="No matches returned")
 
-    # 3. Fetch image for each match in parallel
     async def enrich_match(match):
-        colors = match.get("detectedColors", [])
-        color_str = " ".join(colors) if isinstance(colors, list) else colors
+        if match.get("rank") == 1:
+            return match
         query = match.get("imageSearchQuery") or \
-            f"{match.get('brand')} {match.get('model')} {color_str}"
+            f"{match.get('brand')} {match.get('model')}"
         image_data = await fetch_bag_image(query)
         return {
             **match,
@@ -122,20 +112,10 @@ class ImageUrlRequest(BaseModel):
 
 @router.post("/bags/price/by-image")
 async def price_by_image(req: ImageUrlRequest):
-    # download image from S3 url
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(req.image_url)
-        response.raise_for_status()
-        contents = response.content
-        mime = response.headers.get("content-type", "image/jpeg")
-
-    b64 = base64.b64encode(contents).decode("utf-8")
-
     result = await get_full_valuation_from_image(
-        photo_b64=b64,
-        photo_mime=mime,
+        image_url=req.image_url,
+        purchase_price=req.purchase_price,
         image_search_query=req.image_search_query,
-        purchase_price=req.purchase_price
     )
     return {"status": 200, "success": True, "data": result}
 

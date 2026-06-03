@@ -230,33 +230,29 @@ Results:
 # ─────────────────────────────────────────
 
 
-async def upload_image(photo_b64: str, photo_mime: str) -> str:
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            "https://freeimage.host/api/1/upload",
-            data={
-                "key": "6d207e02198a847aa98d0a2a901485a5",
-                "action": "upload",
-                "source": photo_b64,
-                "format": "json",
-            }
-        )
-        response.raise_for_status()
-        url = response.json()["image"]["url"]
-        logger.info(f"[upload_image] {url}")
-        return url
+# async def upload_image(photo_b64: str, photo_mime: str) -> str:
+#     async with httpx.AsyncClient(timeout=30) as client:
+#         response = await client.post(
+#             "https://freeimage.host/api/1/upload",
+#             data={
+#                 "key": "6d207e02198a847aa98d0a2a901485a5",
+#                 "action": "upload",
+#                 "source": photo_b64,
+#                 "format": "json",
+#             }
+#         )
+#         response.raise_for_status()
+#         url = response.json()["image"]["url"]
+#         logger.info(f"[upload_image] {url}")
+#         return url
 
 # ─────────────────────────────────────────
 # STEP 2 — Google Lens → get priced sources
 # ─────────────────────────────────────────
 
 
-async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> list[dict]:
-
-    if image_url:
-        lens_url = image_url
-    else:
-        lens_url = await upload_image(photo_b64, photo_mime)
+async def get_lens_prices(image_url: str) -> list[dict]:
+    lens_url = image_url
 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(
@@ -274,20 +270,16 @@ async def get_lens_prices(photo_b64: str, photo_mime: str, image_url: str) -> li
 
     priced_sources = []
     for m in data.get("visual_matches", []):
-        # print(f"[debug raw match] {m}")
         price_raw = m.get("price", {}).get("value", "")
         link = m.get("link", "")
         if not price_raw or not link:
             continue
         domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
-        domain_str = domain.group(1) if domain else "unknown"
         priced_sources.append({
             "title": m.get("title", ""),
             "price_raw": str(price_raw),
             "url": link,
-            "source": domain_str,
-            "country": get_country(domain_str),
-            "condition_raw": m.get("condition", "")
+            "source": domain.group(1) if domain else "unknown"
         })
 
     logger.info(
@@ -344,12 +336,12 @@ async def search_priority_sites(query: str) -> list[dict]:
 # ─────────────────────────────────────────
 
 
-async def fetch_prices_from_image(photo_b64: str, photo_mime: str, image_search_query: str = "", image_url: str = "") -> dict:
+async def fetch_prices_from_image(image_url: str, image_search_query: str = "") -> dict:
     await refresh_rates()
 
     # Run Lens + priority site search concurrently
     reference = image_search_query
-    lens_task = get_lens_prices(photo_b64, photo_mime, image_url)
+    lens_task = get_lens_prices(image_url)
     priority_task = search_priority_sites(reference)
     lens_sources, priority_sources = await asyncio.gather(lens_task, priority_task)
 
