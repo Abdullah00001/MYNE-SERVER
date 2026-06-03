@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import OPENAI_API_KEY, SERP_API_KEY
 from app.services.brand_config import BRAND_CONFIG, get_knowledge_file
-from app.services.serp_service_copy import detect_currency_symbol, extract_price, to_eur
+from app.services.price_service import to_eur, detect_currency_symbol, extract_price
 
 logging.basicConfig(level=logging.INFO)
 
@@ -99,7 +99,18 @@ class BagMatch(BaseModel):
         return v
 
 
-PROMPT = '''You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 4 matches ordered by confidence.
+PROMPT = '''
+
+Before outputting JSON, silently reason through these steps:
+1. What are ALL visible physical features? (shape, hardware, stitching, size, colors, leather texture)
+2. What is the single most likely identification? Commit to it.
+3. What are 3 genuinely different alternative interpretations of the SAME image?
+   - Each must differ in at least 2 of: brand, model, size, colorway
+   - Ask yourself: "If rank 1 is wrong, what else could this realistically be?"
+4. Only then output the JSON.
+
+
+You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 4 matches ordered by confidence.
 
 IDENTIFICATION RULES:
 - Be decisive. Never use "maybe", "possibly". Always commit to the closest match.
@@ -147,14 +158,14 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "estimatedValueEUR":95000,
     "detectedConstruction":"Retourne",
     "detectedColors":["Orange H","Sanguine","Bleu Hydra","Gold","Etain","Bleu Lin"],
-    "detectedLeathers": "Clemence, Swift",
+    "detectedLeathers":"Clemence, Swift",
     "detectedHardware":"Palladium",
     "detectedSize":"35",
     "colorAccuracy":88,
-    "alternativeColors":[],
+    "alternativeColors":["Brique","Capucine","Rouge H","Vermillon"],
     "editionName":"Arlequin",
     "special_variant":"Arlequin Limited Edition",
-    "isSpecialOrder":true,
+    "isSpecialOrder":false,
     "isExotic":false,
     "isLimitedEdition":true,
     "isBiColor":false,
@@ -162,56 +173,111 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "isMultiColor":true,
     "isHSS":false,
     "condition":"Excellent",
-    "imageSearchQuery":"Hermès Birkin Arlequin 35 Orange Sanguine Bleu Hydra Gold Etain Bleu Lin Clemence & Swift Palladium new"
+    "imageSearchQuery":"Hermès Birkin Arlequin 35 Orange H Sanguine Bleu Hydra Gold Etain Bleu Lin Clemence Swift Palladium"
   },
-  {"rank":2,"brand":"...","model":"...","confidence":70,"confidenceLabel":"Medium","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":60,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
-  {"rank":3,"brand":"...","model":"...","confidence":50,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":50,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."},
-  {"rank":4,"brand":"...","model":"...","confidence":30,"confidenceLabel":"Low","estimatedValueEUR":0,"detectedConstruction":null,"detectedColors":["..."],"detectedLeathers":"...","detectedHardware":"...","detectedSize":"...","colorAccuracy":40,"alternativeColors":[],"editionName":null,"special_variant":"","isSpecialOrder":false,"isExotic":false,"isLimitedEdition":false,"isBiColor":false,"isTriColor":false,"isMultiColor":false,"isHSS":false,"condition":"...","imageSearchQuery":"..."}
+  {
+    "rank":2,
+    "brand":"Hermès",
+    "model":"Birkin Arlequin 30",
+    "confidence":72,
+    "confidenceLabel":"Medium",
+    "estimatedValueEUR":85000,
+    "detectedConstruction":"Retourne",
+    "detectedColors":["Sanguine","Bleu Hydra","Etain","Orange H"],
+    "detectedLeathers":"Togo, Clemence",
+    "detectedHardware":"Gold",
+    "detectedSize":"30",
+    "colorAccuracy":75,
+    "alternativeColors":["Rouge H","Rouge Casaque","Vermillon","Capucine"],
+    "editionName":"Arlequin",
+    "special_variant":"Arlequin Limited Edition",
+    "isSpecialOrder":false,
+    "isExotic":false,
+    "isLimitedEdition":true,
+    "isBiColor":false,
+    "isTriColor":false,
+    "isMultiColor":true,
+    "isHSS":false,
+    "condition":"Very Good",
+    "imageSearchQuery":"Hermès Birkin Arlequin 30 Sanguine Bleu Hydra Etain Orange H Togo Clemence Gold"
+  },
+  {
+    "rank":3,
+    "brand":"Hermès",
+    "model":"Kelly 32 Retourne",
+    "confidence":48,
+    "confidenceLabel":"Low",
+    "estimatedValueEUR":22000,
+    "detectedConstruction":"Retourne",
+    "detectedColors":["Bleu Saphir"],
+    "detectedLeathers":"Togo",
+    "detectedHardware":"Palladium",
+    "detectedSize":"32",
+    "colorAccuracy":65,
+    "alternativeColors":["Bleu Nuit","Bleu Indigo","Bleu de Prusse","Bleu Encre","Bleu Abysse"],
+    "editionName":null,
+    "special_variant":"",
+    "isSpecialOrder":false,
+    "isExotic":false,
+    "isLimitedEdition":false,
+    "isBiColor":false,
+    "isTriColor":false,
+    "isMultiColor":false,
+    "isHSS":false,
+    "condition":"Good",
+    "imageSearchQuery":"Hermès Kelly 32 Retourne Bleu Saphir Togo Palladium"
+  },
+  {
+    "rank":4,
+    "brand":"Louis Vuitton",
+    "model":"Speedy Bandoulière 30",
+    "confidence":28,
+    "confidenceLabel":"Low",
+    "estimatedValueEUR":1400,
+    "detectedConstruction":null,
+    "detectedColors":["Monogram Canvas","Vachetta"],
+    "detectedLeathers":"Monogram Canvas, Vachetta Leather",
+    "detectedHardware":"Gold",
+    "detectedSize":"30",
+    "colorAccuracy":55,
+    "alternativeColors":["Damier Ebene","Damier Azur"],
+    "editionName":null,
+    "special_variant":"",
+    "isSpecialOrder":false,
+    "isExotic":false,
+    "isLimitedEdition":false,
+    "isBiColor":false,
+    "isTriColor":false,
+    "isMultiColor":false,
+    "isHSS":false,
+    "condition":"Good",
+    "imageSearchQuery":"Louis Vuitton Speedy Bandoulière 30 Monogram Canvas Vachetta Gold"
+  }
 ]}
 
 IMPORTANT:
 - Always return exactly 4 matches
-- Rank 1: highest confidence identification
-- Rank 2: same family but DIFFERENT size (e.g. if rank1 is 25, try 30)
-- Rank 3: different model entirely within same brand (e.g. Kelly instead of Birkin)
-- Rank 4: different brand OR most different plausible interpretation (e.g. simple Birkin)
-- Never repeat same brand+model twice
+RANK RULES:
+- Rank 1: Your highest confidence identification based on all visible evidence. Fully commit.
+- Rank 2: Ask "what if the size is wrong?" or "what if this is a closely related variant?" 
+  Must differ from rank 1 in at least: size OR colorway OR sub-model. Never identical brand+model+size.
+- Rank 3: Ask "what if this is a different model from the same brand?" 
+  Pick the most visually similar alternative model. All attributes must reflect THAT model independently.
+- Rank 4: Ask "what if we are completely wrong about the brand?" 
+  Pick the most plausible alternative brand. Attributes must be typical for that brand, not copied from rank 1.
+- HARD RULE: Read each rank's JSON back against rank 1 before finalizing. 
+  If colors + leather + hardware are identical, you have failed. Rewrite that rank.
 - Never leave imageSearchQuery empty'''
 
 
-async def upload_image(photo_b64: str, photo_mime: str) -> str:
-    """Upload to freeimage.host and return public URL"""
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            "https://freeimage.host/api/1/upload",
-            data={
-                "key": "6d207e02198a847aa98d0a2a901485a5",  # free public API key
-                "action": "upload",
-                "source": photo_b64,
-                "format": "json",
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
-
-    url = data["image"]["url"]
-    logger.info(f"Uploaded to freeimage.host: {url}")
-    return url
-
-
-async def get_lens_data(photo_b64: str, photo_mime: str) -> Dict[str, Any]:
-    """Use SerpAPI Google Lens to get product titles and image URLs"""
-
-    # Step 1: Upload to Imgur to get a public URL
-    image_url = await upload_image(photo_b64, photo_mime)
-
-    # Step 2: Pass public URL to SerpAPI
+async def get_lens_data(url: str) -> Dict[str, Any]:
+    """Use SerpAPI Google Lens with a direct image URL"""
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(
             "https://serpapi.com/search",
             params={
                 "engine": "google_lens",
-                "url": image_url,
+                "url": url,
                 "api_key": SERP_API_KEY,
             }
         )
@@ -235,17 +301,15 @@ async def get_lens_data(photo_b64: str, photo_mime: str) -> Dict[str, Any]:
     }
 
 
-async def detect_brand(photos: List[str], photo_mimes: List[str]) -> str:
-    """Step 1: Cheap call to identify brand only"""
+async def detect_brand(url: str) -> str:
     image_content = [
         {
             "type": "image_url",
             "image_url": {
-                "url": f"data:{mime};base64,{b64}",
-                "detail": "low"  # low detail = cheaper & faster
+                "url": url,
+                "detail": "low"
             }
         }
-        for b64, mime in zip(photos, photo_mimes)
     ]
 
     content = [{
@@ -289,18 +353,15 @@ Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, 
     return "unknown"
 
 
-async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[str, Any]]:
+async def identify_bag(url: str) -> List[Dict[str, Any]]:
     start_time = time.time()
 
     # Validate inputs
-    if not photos or not photo_mimes:
-        raise HTTPException(status_code=400, detail="No photos provided")
-    if len(photos) > MAX_IMAGES:
-        raise HTTPException(
-            status_code=400, detail=f"Maximum {MAX_IMAGES} photos allowed")
+    if not url:
+        raise HTTPException(status_code=400, detail="No URL provided")
 
 # STEP 1: Get Lens data
-    lens_data = await get_lens_data(photos[0], photo_mimes[0])
+    lens_data = await get_lens_data(url)
     image_urls = lens_data["image_urls"]
 
     # Log full lens result
@@ -328,7 +389,7 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
 
     # If Lens didn't find brand, fall back to GPT brand detection
     if brand_key == "unknown":
-        brand_key = await detect_brand(photos, photo_mimes)
+        brand_key = await detect_brand(url)
         logger.info(f"Brand from detect_brand fallback: {brand_key}")
 
     base = KNOWLEDGE.get("_base", "")
@@ -339,11 +400,10 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
         {
             "type": "image_url",
             "image_url": {
-                "url": f"data:{mime};base64,{b64}",
+                "url": url,
                 "detail": "high"
             }
         }
-        for b64, mime in zip(photos, photo_mimes)
     ]
 
 # STEP 3: Build prompt + images
@@ -450,19 +510,39 @@ async def identify_bag(photos: List[str], photo_mimes: List[str]) -> List[Dict[s
         raise HTTPException(
             status_code=422, detail=f"Invalid response format: {str(e)}")
 
-# STEP 7: Attach image URLs from Lens
+# STEP 7: Attach image URLs from Lens + pricing
+    # Priority domains for image selection
+    PRIORITY_IMAGE_DOMAINS = [
+        "vestiairecollective", "therealreal", "fashionphile",
+        "madisonavenuecouture", "1stdibs", "sothebys", "rebag"
+    ]
+
+    def pick_best_image(urls: list) -> str:
+        for domain in PRIORITY_IMAGE_DOMAINS:
+            for u in urls:
+                if domain in u:
+                    return u
+        return urls[0] if urls else ""
+
+    # STEP 7: Attach image URLs from Lens + pricing
     for i, match in enumerate(validated):
-        match["imageUrl"] = image_urls[i] if i < len(image_urls) else ""
-        match["thumbnailUrl"] = image_urls[i] if i < len(image_urls) else ""
-        if i == 0 and lens_data["prices"]:
-            raw = lens_data["prices"][0]  # e.g. "$25,000*"
-            price = extract_price(raw)
-            if price:
-                symbol = detect_currency_symbol(raw)
-                eur = to_eur(price, symbol)
-                match["estimatedValueEUR"] = int(eur)
-                logger.info(
-                    f"[lens_price] raw={raw} | symbol={symbol} | price={price} | eur={eur}")
+        if i == 0:
+            match["imageUrl"] = pick_best_image(
+                image_urls) if image_urls else ""
+            match["thumbnailUrl"] = match["imageUrl"]
+            if lens_data["prices"]:
+                raw = lens_data["prices"][0]
+                price = extract_price(raw)
+                if price:
+                    symbol = detect_currency_symbol(raw)
+                    eur = to_eur(price, symbol)
+                    match["estimatedValueEUR"] = int(eur)
+                    logger.info(
+                        f"[lens_price] raw={raw} | symbol={symbol} | price={price} | eur={eur}")
+        else:
+            match["imageUrl"] = ""
+            match["thumbnailUrl"] = ""
+
     logger.info(
-        f"Done in {time.time() - start_time:.2f}s | brand={brand_key} | photos={len(photos)}")
+        f"Done in {time.time() - start_time:.2f}s | brand={brand_key} | url={url}")
     return validated
