@@ -29,6 +29,7 @@ services:
       context: ./backend-server
       dockerfile: Dockerfile.dev
     container_name: myne_server_container
+    restart: unless-stopped
     ports:
       - 5022:5000
     networks:
@@ -44,6 +45,7 @@ services:
       context: ./ai-server
       dockerfile: Dockerfile.dev
     container_name: myne_ai_server_container
+    restart: unless-stopped
     ports:
       - "8022:8000"
     env_file:
