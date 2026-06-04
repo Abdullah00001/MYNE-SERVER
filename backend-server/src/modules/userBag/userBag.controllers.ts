@@ -239,10 +239,12 @@ export class UserBagController extends BaseController {
 
   private async _getCollectionById(req: Request, res: Response): Promise<void> {
     const collection = req.userBagCollection;
-    const { year } = req.query as { year?: string };
+    const { period } = req.query as {
+      period: '3 months' | '6 months' | '1 year';
+    };
     const data = await this.userBagService.getCollectionById({
       collection,
-      year,
+      period,
     });
     res.status(200).json({
       success: true,

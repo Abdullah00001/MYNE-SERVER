@@ -1333,7 +1333,7 @@ export class UserBagService {
     period,
   }: {
     collection: IUserBag;
-    period?: '3 months' | '6 months' | '1 year';
+    period: '3 months' | '6 months' | '1 year';
   }): Promise<IUserBagResponse> {
     try {
       const redisClient = getRedisClient();
