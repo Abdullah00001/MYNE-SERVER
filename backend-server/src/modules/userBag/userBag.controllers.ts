@@ -240,7 +240,7 @@ export class UserBagController extends BaseController {
   private async _getCollectionById(req: Request, res: Response): Promise<void> {
     const collection = req.userBagCollection;
     const { period } = req.query as {
-      period: '3 months' | '6 months' | '1 year';
+      period: string;
     };
     const data = await this.userBagService.getCollectionById({
       collection,

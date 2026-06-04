@@ -1333,20 +1333,91 @@ export class UserBagService {
     period,
   }: {
     collection: IUserBag;
-    period: '3 months' | '6 months' | '1 year';
+    period: string;
   }): Promise<IUserBagResponse> {
     try {
       const redisClient = getRedisClient();
 
-      const VALID_PERIODS = ['3 months', '6 months', '1 year'] as const;
-      const targetPeriod = VALID_PERIODS.includes(
-        period as (typeof VALID_PERIODS)[number]
-      )
-        ? period!
-        : '1 year'; // default fallback
+      const STATIC_PERIODS = ['3 months', '6 months', '1 year'] as const;
+      const MONTH_NAMES = [
+        'january',
+        'february',
+        'march',
+        'april',
+        'may',
+        'june',
+        'july',
+        'august',
+        'september',
+        'october',
+        'november',
+        'december',
+      ];
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      // End point is always current month - 1
+      const endMonthIndex = now.getMonth() - 1; // 0-based, -1 = go back one month
+      const endDate = new Date(currentYear, endMonthIndex, 1);
+      const endYear = endDate.getFullYear();
+      const endMonth = endDate.getMonth(); // 0-based
+
+      // ─── Helper: build month slice ───────────────────────────────────────────
+      // Returns array of { year, month } going back `count` months from endDate (inclusive)
+      const buildMonthSlice = (
+        count: number
+      ): { year: number; month: number }[] => {
+        const slice: { year: number; month: number }[] = [];
+        for (let i = count - 1; i >= 0; i--) {
+          const date = new Date(endYear, endMonth - i, 1);
+          slice.push({ year: date.getFullYear(), month: date.getMonth() });
+        }
+        return slice;
+      };
+
+      // ─── Determine month count from period ──────────────────────────────────
+      const periodToMonthCount: Record<string, number> = {
+        '3 months': 3,
+        '6 months': 6,
+        '1 year': 12,
+      };
+
+      // ─── Slice historical value from raw document ────────────────────────────
+      const sliceHistoricalValue = (
+        historicalValue: Record<string, Record<string, unknown>>,
+        slice: { year: number; month: number }[]
+      ) => {
+        const result: Record<string, Record<string, unknown>> = {};
+        for (const { year, month } of slice) {
+          const yearKey = year.toString();
+          const monthKey = MONTH_NAMES[month];
+          const monthData = historicalValue?.[yearKey]?.[monthKey];
+          if (monthData !== undefined) {
+            if (!result[yearKey]) result[yearKey] = {};
+            result[yearKey][monthKey] = monthData;
+          }
+        }
+        return result;
+      };
+
+      // ─── Build available period options for frontend ─────────────────────────
+      // Always: ["3 months", "6 months", "1 year"] + previous year + any older years
+      // Current year is excluded
+      const buildAvailablePeriods = (
+        historicalValue: Record<string, Record<string, unknown>>
+      ): string[] => {
+        const yearsInDb = Object.keys(historicalValue ?? {})
+          .map(Number)
+          .filter((y) => y < currentYear) // exclude current year
+          .sort((a, b) => b - a); // descending
+
+        return [...STATIC_PERIODS, ...yearsInDb.map(String)];
+      };
 
       console.log(collection);
 
+      // ─── Aggregation (without historicalValue slicing — done in JS) ──────────
       const [result] = await UserCollection.aggregate([
         {
           $match: { _id: collection._id, isAdmin: false },
@@ -1369,40 +1440,43 @@ export class UserBagService {
           },
         },
         { $unwind: '$modelId' },
-        {
-          $addFields: {
-            // Static period keys available for the frontend picker
-            historicalValuePeriods: {
-              $filter: {
-                input: ['3 months', '6 months', '1 year'],
-                as: 'p',
-                cond: {
-                  $gt: [{ $ifNull: [`$historicalValue.$$p`, null] }, null],
-                },
-              },
-            },
-            // Only return the selected period's data
-            historicalValue: {
-              $cond: {
-                if: {
-                  $ifNull: [
-                    `$historicalValue.${targetPeriod.replace(/ /g, '_')}`,
-                    false,
-                  ],
-                },
-                then: {
-                  [targetPeriod]: `$historicalValue.${targetPeriod.replace(/ /g, '_')}`,
-                },
-                else: null,
-              },
-            },
-          },
-        },
       ]);
 
       if (!result) throw new Error('Bag not found');
 
-      // ... rest of the AI pricing logic remains unchanged
+      // ─── Period resolution & historicalValue slicing ─────────────────────────
+      const isStaticPeriod = STATIC_PERIODS.includes(
+        period as (typeof STATIC_PERIODS)[number]
+      );
+      const isOldYearPeriod = !isStaticPeriod && /^\d{4}$/.test(period);
+
+      let slicedHistoricalValue: Record<string, Record<string, unknown>> = {};
+
+      if (isStaticPeriod) {
+        const monthCount = periodToMonthCount[period];
+        const slice = buildMonthSlice(monthCount);
+        slicedHistoricalValue = sliceHistoricalValue(
+          result.historicalValue,
+          slice
+        );
+      } else if (isOldYearPeriod) {
+        // Return full year data for old year selections
+        const yearKey = period;
+        slicedHistoricalValue = result.historicalValue?.[yearKey]
+          ? { [yearKey]: result.historicalValue[yearKey] }
+          : {};
+      } else {
+        // Invalid period — default to 1 year
+        const slice = buildMonthSlice(12);
+        slicedHistoricalValue = sliceHistoricalValue(
+          result.historicalValue,
+          slice
+        );
+      }
+
+      const availablePeriods = buildAvailablePeriods(result.historicalValue);
+
+      // ─── AI pricing (unchanged) ──────────────────────────────────────────────
       let aiResponsePayload: ValuationResponse;
       const cacheAiResponse = await redisClient.get(
         `bag-price-${collection._id}`
@@ -1456,6 +1530,8 @@ export class UserBagService {
 
       return {
         ...result,
+        historicalValue: slicedHistoricalValue,
+        historicalValuePeriods: availablePeriods,
         aiSuggestedPrice:
           Math.round(
             (((priceStatus.currentMinValue ?? 0) +
