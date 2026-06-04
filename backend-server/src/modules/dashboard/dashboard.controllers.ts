@@ -33,10 +33,10 @@ export class DashboardController extends BaseController {
   }
 
   private async _appDashboardStat(req: Request, res: Response): Promise<void> {
-    const user =req.user as IUser;
-    const { year } = req.query as { year?: string };
-    const data=await this.dashboardService.appDashboardStat({user,year});
-    console.log("app dashboard data: ",data);
+    const user = req.user as IUser;
+    const { period } = req.query as { period?: string };
+    const data = await this.dashboardService.appDashboardStat({ user, period });
+    console.log('app dashboard data: ', data);
     res.status(200).json({
       success: true,
       status: 200,
