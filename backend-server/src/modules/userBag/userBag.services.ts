@@ -1330,15 +1330,23 @@ export class UserBagService {
 
   async getCollectionById({
     collection,
-    year,
+    period,
   }: {
     collection: IUserBag;
-    year?: string;
+    period?: '3 months' | '6 months' | '1 year';
   }): Promise<IUserBagResponse> {
     try {
       const redisClient = getRedisClient();
-      const targetYear = year ?? new Date().getFullYear().toString();
+
+      const VALID_PERIODS = ['3 months', '6 months', '1 year'] as const;
+      const targetPeriod = VALID_PERIODS.includes(
+        period as (typeof VALID_PERIODS)[number]
+      )
+        ? period!
+        : '1 year'; // default fallback
+
       console.log(collection);
+
       const [result] = await UserCollection.aggregate([
         {
           $match: { _id: collection._id, isAdmin: false },
@@ -1351,9 +1359,7 @@ export class UserBagService {
             as: 'brandId',
           },
         },
-        {
-          $unwind: '$brandId',
-        },
+        { $unwind: '$brandId' },
         {
           $lookup: {
             from: 'models',
@@ -1362,33 +1368,41 @@ export class UserBagService {
             as: 'modelId',
           },
         },
-        {
-          $unwind: '$modelId',
-        },
+        { $unwind: '$modelId' },
         {
           $addFields: {
-            // All available years as an array for frontend year picker
-            historicalValueYears: {
-              $map: {
-                input: {
-                  $objectToArray: { $ifNull: ['$historicalValue', {}] },
+            // Static period keys available for the frontend picker
+            historicalValuePeriods: {
+              $filter: {
+                input: ['3 months', '6 months', '1 year'],
+                as: 'p',
+                cond: {
+                  $gt: [{ $ifNull: [`$historicalValue.$$p`, null] }, null],
                 },
-                as: 'entry',
-                in: '$$entry.k',
               },
             },
-            // Only the selected year's full month data
+            // Only return the selected period's data
             historicalValue: {
               $cond: {
-                if: { $ifNull: [`$historicalValue.${targetYear}`, false] },
-                then: { [targetYear]: `$historicalValue.${targetYear}` },
+                if: {
+                  $ifNull: [
+                    `$historicalValue.${targetPeriod.replace(/ /g, '_')}`,
+                    false,
+                  ],
+                },
+                then: {
+                  [targetPeriod]: `$historicalValue.${targetPeriod.replace(/ /g, '_')}`,
+                },
                 else: null,
               },
             },
           },
         },
       ]);
+
       if (!result) throw new Error('Bag not found');
+
+      // ... rest of the AI pricing logic remains unchanged
       let aiResponsePayload: ValuationResponse;
       const cacheAiResponse = await redisClient.get(
         `bag-price-${collection._id}`
@@ -1406,7 +1420,6 @@ export class UserBagService {
         );
         const freshAiResponsePayload = plainResponse.data?.data;
         console.log(freshAiResponsePayload);
-        // Cache the AI response for 24 hours
         await redisClient.set(
           `bag-price-${collection._id}`,
           JSON.stringify(freshAiResponsePayload),
@@ -1420,7 +1433,7 @@ export class UserBagService {
         aiResponsePayload?.sources_used?.flatMap(
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
-      console.log(aiResponsePayload?.sources_used);
+
       const priceStatus = {
         trend: aiResponsePayload?.trend ?? null,
         changePercentage: aiResponsePayload?.change_percentage ?? null,
@@ -1429,8 +1442,7 @@ export class UserBagService {
         currency: aiResponsePayload?.currency ?? null,
         fetchedAt: new Date().toISOString(),
       };
-      console.log(priceStatus);
-      // ai suggested price will be median of currentMinValue and currentMaxValue, rounded to 2 decimals.
+
       const marketSources: {
         eur: number;
         original: number;
@@ -1441,7 +1453,7 @@ export class UserBagService {
         country: string;
         condition: string;
       }[] = aiResponsePayload?.market_sources?.Search_Results || [];
-      console.log(marketSources);
+
       return {
         ...result,
         aiSuggestedPrice:
