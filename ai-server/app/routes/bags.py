@@ -134,3 +134,37 @@ async def health():
 async def debug_price(request: Request):
     body = await request.json()
     return {"received": body, "color_type": str(type(body.get("color")))}
+
+
+@router.post("/identify/upload/stream")
+async def identify_upload_stream(
+    url: str,
+    user_id: str = "anonymous",
+):
+    async def event_stream():
+        # Step 1: identify
+        matches = await identify_bag(url)
+        if not matches:
+            yield f"data: {json.dumps({'error': 'No matches'})}\n\n"
+            return
+ 
+        # Step 2: stream rank 1 immediately
+        rank1 = matches[0]
+        yield f"data: {json.dumps({'match': rank1, 'rank': 1})}\n\n"
+ 
+        # Step 3: enrich ranks 2/3/4 in parallel, stream each as it finishes
+        async def enrich_and_stream(match):
+            query = match.get("imageSearchQuery") or \
+                f"{match.get('brand')} {match.get('model')}"
+            image_data = await fetch_bag_image(query)
+            return {**match, "imageUrl": image_data.get("imageUrl", ""), "thumbnailUrl": image_data.get("thumbnailUrl", "")}
+ 
+        tasks = [enrich_and_stream(m) for m in matches[1:]]
+        for coro in asyncio.as_completed(tasks):
+            enriched = await coro
+            yield f"data: {json.dumps({'match': enriched, 'rank': enriched['rank']})}\n\n"
+ 
+        yield "data: {\"done\": true}\n\n"
+ 
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+ 
