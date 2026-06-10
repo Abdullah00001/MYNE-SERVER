@@ -8,8 +8,6 @@ import {
   IPriceSyncJobData,
   PriceSyncQueue,
 } from '@/queue/queues/priceSync.queue';
-import { IBrand } from '@/modules/brand/brand.types';
-import { IModel } from '@/modules/model/model.types';
 
 const getPriceSyncQueue = (): PriceSyncQueue =>
   container.resolve(PriceSyncQueue);
@@ -41,11 +39,8 @@ const performPriceUpdate = async (): Promise<void> => {
     const publishedBags = await UserCollection.find({
       publishStatus: PublishStatus.PUBLISHED,
     })
-      .populate('brandId', 'brandName')
-      .populate('modelId', 'modelName')
-      .select(
-        '_id brandId modelId bagColor condition material hardwareColor size variant'
-      );
+      .select('_id primaryImage imageSearchQuery purchasePrice')
+      .lean();
 
     if (publishedBags.length === 0) {
       logger.info('[PriceUpdate] No published bags found');
