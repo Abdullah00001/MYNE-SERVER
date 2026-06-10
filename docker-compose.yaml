@@ -1,79 +1,51 @@
 services:
   redis:
-    image: redis:latest
+    image: redis:7.2-alpine
     container_name: myne_redis_container
-    command: redis-server --requirepass myStrongRedisPassword
+    command: redis-server --requirepass ${REDIS_PASSWORD:-myStrongRedisPassword}
+    restart: unless-stopped
     ports:
-      - 6387:6379
+      - "${REDIS_PORT:-6387}:6379"
     networks:
       - myne_backend_network
     volumes:
       - myne_redis_volume:/data
-  redis-ui:
-    image: rediscommander/redis-commander:latest
-    container_name: myne_redis_ui_container
-    environment:
-      # Format: connectionName:host:port:dbIndex:password
-      - REDIS_HOSTS=local:redis:6379:0:myStrongRedisPassword
-      # This helps the UI start even if it takes a second to find the redis container
-      - HTTP_USER=admin
-      - HTTP_PASSWORD=admin
-    ports:
-      - 8087:8081
-    networks:
-      - myne_backend_network
-    depends_on:
-      - redis
+
   server:
     build:
       context: ./backend-server
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: myne_server_container
     restart: unless-stopped
     ports:
-      - 5022:5000
+      - "${BACKEND_PORT:-5022}:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+    env_file:
+      - ./backend-server/.env
     networks:
       - myne_backend_network
-    volumes:
-      - "./backend-server:/usr/src/app"
-      - /usr/src/app/node_modules
-    stop_grace_period: 8s
     depends_on:
       - redis
+
   ai_server:
     build:
       context: ./ai-server
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: myne_ai_server_container
     restart: unless-stopped
     ports:
-      - "8022:8000"
+      - "${AI_PORT:-8022}:8000"
+    environment:
+      ENV: prod
+      PORT: 8000
     env_file:
       - ./ai-server/.env
-    volumes:
-      - ./ai-server:/app
     networks:
       - myne_backend_network
     depends_on:
       - redis
-  # ── Background Worker ────────────────────────────────────────────────────
-  # worker:
-  #   build:
-  #     context: ./myne-worker
-  #     dockerfile: Dockerfile.dev
-  #   container_name: myne_worker_container
-  #   env_file:
-  #     - ./myne-worker/.env
-  #   volumes:
-  #     - "./myne-worker:/usr/src/app"
-  #     - /usr/src/app/node_modules
-  #     - myne_worker_logs:/usr/src/app/logs
-  #   networks:
-  #     - myne_backend_network
-  #   stop_grace_period: 10s
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - redis
 
 networks:
   myne_backend_network:
