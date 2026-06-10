@@ -38,7 +38,7 @@ class BagMatch(BaseModel):
     brand: str
     model: str
     confidence: int = Field(default=0, ge=0, le=100)
-    confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
+    # confidenceLabel: str = Field(default="Low", pattern="^(High|Medium|Low)$")
     estimatedValueEUR: int = Field(default=0, ge=0)
 
     # Physical attributes
@@ -91,12 +91,12 @@ class BagMatch(BaseModel):
             return [v]  # handle if AI returns string instead of list
         return v
 
-    @field_validator('confidenceLabel')
-    @classmethod
-    def validate_confidence_label(cls, v: str) -> str:
-        if v not in ['High', 'Medium', 'Low']:
-            raise ValueError('confidenceLabel must be High, Medium, or Low')
-        return v
+    # @field_validator('confidenceLabel')
+    # @classmethod
+    # def validate_confidence_label(cls, v: str) -> str:
+    #     if v not in ['High', 'Medium', 'Low']:
+    #         raise ValueError('confidenceLabel must be High, Medium, or Low')
+    #     return v
 
 
 PROMPT = '''
@@ -154,7 +154,6 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "brand":"Hermès",
     "model":"Birkin Arlequin 35",
     "confidence":93,
-    "confidenceLabel":"High",
     "estimatedValueEUR":95000,
     "detectedConstruction":"Retourne",
     "detectedColors":["Orange H","Sanguine","Bleu Hydra","Gold","Etain","Bleu Lin"],
@@ -180,7 +179,6 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "brand":"Hermès",
     "model":"Birkin Arlequin 30",
     "confidence":72,
-    "confidenceLabel":"Medium",
     "estimatedValueEUR":85000,
     "detectedConstruction":"Retourne",
     "detectedColors":["Sanguine","Bleu Hydra","Etain","Orange H"],
@@ -206,7 +204,6 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "brand":"Hermès",
     "model":"Kelly 32 Retourne",
     "confidence":48,
-    "confidenceLabel":"Low",
     "estimatedValueEUR":22000,
     "detectedConstruction":"Retourne",
     "detectedColors":["Bleu Saphir"],
@@ -232,7 +229,6 @@ Return ONLY this JSON shape, no explanation, no markdown:
     "brand":"Louis Vuitton",
     "model":"Speedy Bandoulière 30",
     "confidence":28,
-    "confidenceLabel":"Low",
     "estimatedValueEUR":1400,
     "detectedConstruction":null,
     "detectedColors":["Monogram Canvas","Vachetta"],
@@ -286,8 +282,15 @@ async def get_lens_data(url: str) -> Dict[str, Any]:
 
     visual_matches = data.get("visual_matches", [])
     titles = [m.get("title", "") for m in visual_matches[:5] if m.get("title")]
-    image_urls = [m.get("thumbnail", "")
-                  for m in visual_matches[:4] if m.get("thumbnail")]
+    # image_urls = [m.get("thumbnail", "")
+    #               for m in visual_matches[:4] if m.get("thumbnail")]
+
+    image_urls = [
+        m.get("original") or m.get("thumbnail", "")
+        for m in visual_matches[:4]
+        if m.get("original") or m.get("thumbnail")
+    ]
+
     prices = [m.get("price", {}).get("value", "") for m in visual_matches[:4]]
 
     logger.info(f"Lens titles: {titles}")
@@ -354,27 +357,26 @@ Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, 
 
 
 async def identify_bag(url: str) -> List[Dict[str, Any]]:
-    start_time = time.time()
+    t0 = time.time()
 
-    # Validate inputs
     if not url:
         raise HTTPException(status_code=400, detail="No URL provided")
 
-# STEP 1: Get Lens data
+    # STEP 1: Get Lens data
     lens_data = await get_lens_data(url)
     image_urls = lens_data["image_urls"]
+    t1 = time.time()
+    logger.info(f"[T] lens={t1-t0:.2f}s")
 
-    # Log full lens result
     logger.info(f"Full lens data: {json.dumps(lens_data, indent=2)}")
 
-    # Build hint string for GPT-4o from Lens titles
     hints = f"""Product context from Google Lens:
     - Matched titles: {', '.join(lens_data['titles'][:5])}
     - Estimated prices: {', '.join([p for p in lens_data['prices'] if p][:3])}"""
 
     logger.info(f"Lens hints: {hints}")
 
-# STEP 2: Detect brand from Lens titles
+    # STEP 2: Detect brand from Lens titles
     brand_key = "unknown"
     for title in lens_data["titles"]:
         title_lower = title.lower()
@@ -387,10 +389,12 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
 
     logger.info(f"Brand from Lens: {brand_key}")
 
-    # If Lens didn't find brand, fall back to GPT brand detection
     if brand_key == "unknown":
         brand_key = await detect_brand(url)
         logger.info(f"Brand from detect_brand fallback: {brand_key}")
+
+    t2 = time.time()
+    logger.info(f"[T] brand={t2-t1:.2f}s")
 
     base = KNOWLEDGE.get("_base", "")
     brand_knowledge = KNOWLEDGE.get(brand_key, "")
@@ -406,7 +410,7 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         }
     ]
 
-# STEP 3: Build prompt + images
+    # STEP 3: Build prompt + images
     content = [{
         "type": "text",
         "text": "I'm cataloguing this pre-owned luxury handbag for resale inventory. "
@@ -414,18 +418,13 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         + PROMPT + "\n\nREFERENCE KNOWLEDGE:\n" + full_knowledge + "\n\n" + hints
     }] + image_content
 
-    # content = [{
-    #     "type": "text",
-    #     "text": "Describe what you see in this image. Return JSON: {\"description\": \"...\"}"
-    # }] + image_content
-
     # STEP 4: Call API
     data = None
     async with httpx.AsyncClient(timeout=90) as client:
         for model in ["gpt-4o-2024-11-20", "gpt-4o-mini"]:
             json_body = {
                 "model": model,
-                "max_tokens": 2500,
+                "max_tokens": 1800,
                 "temperature": 0.2,
                 "messages": [
                     {
@@ -444,7 +443,6 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
                 ]
             }
 
-            # json_object mode only for gpt-4o
             if "gpt-4o" in model and "mini" not in model:
                 json_body["response_format"] = {"type": "json_object"}
 
@@ -466,8 +464,10 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
 
             logger.warning(f"Model {model} refused, trying next...")
 
+    t3 = time.time()
+    logger.info(f"[T] gpt4o={t3-t2:.2f}s")
+
     # STEP 5: Parse response
-# STEP 5: Parse response
     text = data["choices"][0]["message"]["content"]
 
     if text is None:
@@ -480,7 +480,6 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         raise HTTPException(
             status_code=422, detail="Empty response from OpenAI")
 
-    # Strip markdown code fences if present (gpt-4o-mini tends to add these)
     text = text.strip()
     if text.startswith("```"):
         text = text.split("```", 2)[1]
@@ -495,11 +494,10 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         logger.error(f"JSON parse error: {text[:300]}")
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
 
-    matches = parsed.get("matches", [])   # ← assign FIRST
+    matches = parsed.get("matches", [])
     if not matches:
         raise HTTPException(status_code=422, detail="No matches in response")
 
-    # ← THEN log
     logger.info(f"Raw matches from API: {json.dumps(matches[0], indent=2)}")
 
     # STEP 6: Validate with Pydantic
@@ -510,21 +508,25 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         raise HTTPException(
             status_code=422, detail=f"Invalid response format: {str(e)}")
 
-# STEP 7: Attach image URLs from Lens + pricing
-    # Priority domains for image selection
+    t4 = time.time()
+    logger.info(f"[T] parse={t4-t3:.2f}s")
+
+    # STEP 7: Attach image URLs from Lens + pricing
     PRIORITY_IMAGE_DOMAINS = [
         "vestiairecollective", "therealreal", "fashionphile",
         "madisonavenuecouture", "1stdibs", "sothebys", "rebag"
     ]
 
     def pick_best_image(urls: list) -> str:
+        # skip encrypted/expiring Google proxy URLs
+        clean = [u for u in urls if "encrypted-tbn" not in u]
+        urls_to_use = clean if clean else urls
         for domain in PRIORITY_IMAGE_DOMAINS:
-            for u in urls:
+            for u in urls_to_use:
                 if domain in u:
                     return u
-        return urls[0] if urls else ""
+        return urls_to_use[0] if urls_to_use else ""
 
-    # STEP 7: Attach image URLs from Lens + pricing
     for i, match in enumerate(validated):
         if i == 0:
             match["imageUrl"] = pick_best_image(
@@ -543,6 +545,7 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
             match["imageUrl"] = ""
             match["thumbnailUrl"] = ""
 
+    # FINAL summary line
     logger.info(
-        f"Done in {time.time() - start_time:.2f}s | brand={brand_key} | url={url}")
+        f"[T] TOTAL={t4-t0:.2f}s | lens={t1-t0:.2f} brand={t2-t1:.2f} gpt={t3-t2:.2f} parse={t4-t3:.2f} | brand_key={brand_key}")
     return validated

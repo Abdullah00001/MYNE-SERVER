@@ -669,7 +669,10 @@ LUXURY_SITES_SECONDARY = (
 BLOCKED_DOMAINS = [
     "instagram.com", "lookaside.instagram.com", "pinterest.com",
     "tiktok.com", "facebook.com", "twitter.com", "reddit.com",
-    "encrypted-tbn", "serpapi.com"  # block serpapi's own cached thumbnails
+    "encrypted-tbn", "serpapi.com",
+    "wikimedia.org", "wikipedia.org",  # encyclopedia images
+    "blogspot.com", "wordpress.com",   # blogs
+    "aliexpress.com", "dhgate.com",    # fakes
 ]
 
 
@@ -679,8 +682,7 @@ def is_clean_url(url: str) -> bool:
 
 async def fetch_bag_image(query: str) -> dict:
     try:
-        # First try: luxury sites only
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=8) as client:
             res = await client.get(
                 "https://serpapi.com/search",
                 params={
@@ -698,36 +700,11 @@ async def fetch_bag_image(query: str) -> dict:
             original = result.get("original", "")
             thumbnail = result.get("thumbnail", "")
             if is_clean_url(original):
-                # Also sanitize thumbnail — fall back to original if thumbnail is serpapi-cached
                 clean_thumb = thumbnail if is_clean_url(
                     thumbnail) else original
                 return {"thumbnailUrl": clean_thumb, "imageUrl": original}
 
-        # Fallback: open search but still block bad domains
-        print("[fetch_bag_image] no luxury results, trying open search")
-        async with httpx.AsyncClient(timeout=20) as client:
-            res = await client.get(
-                "https://serpapi.com/search",
-                params={
-                    "engine": "google_images",
-                    "q": query,
-                    "num": 10,  # more results to find a clean one
-                    "tbs": "itp:photo",
-                    "api_key": SERP_API_KEY,
-                }
-            )
-            res.raise_for_status()
-            data = res.json()
-
-        for result in data.get("images_results", []):
-            original = result.get("original", "")
-            thumbnail = result.get("thumbnail", "")
-            if is_clean_url(original):
-                print(
-                    f"[fetch_bag_image] open hit: {result.get('source', 'unknown')}")
-                return {"thumbnailUrl": thumbnail, "imageUrl": original}
-
-        return {"thumbnailUrl": "", "imageUrl": ""}
+        return {"thumbnailUrl": "", "imageUrl": ""}  # no fallback
 
     except Exception as e:
         print(f"[fetch_bag_image] failed: {e}")
