@@ -9,7 +9,7 @@ export class CreateWishDTO extends BaseDTO<IWishlist> {
   public brand: string | IBrand;
   public model: string | IModel;
   public priority: string;
-  public color: string;
+  public color: string | string[];
   public material: string;
   public note?: string;
   public priceDescription: {
@@ -48,7 +48,7 @@ export class GetWishDTO extends BaseDTO<IWishlist> {
   public brand: IBrand;
   public model: IModel;
   public priority: string;
-  public color: string;
+  public color: string | string[];
   public priceDescription: {
     currency: string;
     targetPrice: number;

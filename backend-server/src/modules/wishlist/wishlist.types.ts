@@ -38,9 +38,10 @@ export interface IWishlist {
   hardwareColor: string;
   size: string;
   variant: string;
-  specialVariant: String;
+  specialVariant: string;
   currency: string;
   targetPrice: number;
+  priceDescription: IPriceDescription;
   priority: WishPriority;
   note?: string;
   status?: PurchaseStatus;

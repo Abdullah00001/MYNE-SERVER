@@ -107,6 +107,12 @@ export class AdminBagService {
       const priceHistory: { period: string; avg_price: number }[] =
         aiData?.price_history?.history ?? [];
       const currency: Currency = aiData?.currency ?? null;
+      const currentMinValue = aiData?.price_range?.min ?? null;
+      const currentMaxValue = aiData?.price_range?.max ?? null;
+      const currentValue =
+        currentMinValue != null && currentMaxValue != null
+          ? (currentMinValue + currentMaxValue) / 2
+          : (currentMinValue ?? currentMaxValue ?? 0);
 
       /* ---------------------------- priceStatus build --------------------------- */
       const marketSources: {
@@ -120,8 +126,9 @@ export class AdminBagService {
       aiFields.priceStatus = {
         trend: aiData?.trend ?? null,
         changePercentage: aiData?.change_percentage ?? null,
-        currentMinValue: aiData?.price_range?.min ?? null,
-        currentMaxValue: aiData?.price_range?.max ?? null,
+        currentValue,
+        currentMinValue,
+        currentMaxValue,
         currency,
         fetchedAt: new Date().toISOString(),
       };

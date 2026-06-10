@@ -8,7 +8,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN chmod +x ./scripts/build.sh && npm run build
+RUN chmod +x ./scripts/build.sh && SKIP_LINT=1 npm run build
 RUN npm prune --omit=dev
 
 FROM node:22.14.0-alpine

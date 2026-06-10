@@ -25,7 +25,8 @@ export class PriceSyncWorker extends BaseWorker {
   }
 
   private async process(job: Job<IPriceSyncJobData>): Promise<void> {
-    const { primaryImage, updateType, imageSearchQuery, bagId,purchasePrice } = job.data;
+    const { primaryImage, updateType, imageSearchQuery, bagId, purchasePrice } =
+      job.data;
 
     try {
       logger.info(
@@ -45,6 +46,12 @@ export class PriceSyncWorker extends BaseWorker {
       const priceHistory: { period: string; avg_price: number }[] =
         aiData?.price_history?.history ?? [];
       const currency: Currency = aiData?.currency ?? null;
+      const currentMinValue = aiData?.price_range?.min ?? null;
+      const currentMaxValue = aiData?.price_range?.max ?? null;
+      const currentValue =
+        currentMinValue != null && currentMaxValue != null
+          ? (currentMinValue + currentMaxValue) / 2
+          : (currentMinValue ?? currentMaxValue ?? 0);
 
       const updateFields: {
         priceStatus?: TAdminBagPriceStatus;
@@ -55,8 +62,9 @@ export class PriceSyncWorker extends BaseWorker {
       updateFields.priceStatus = {
         trend: aiData?.trend ?? null,
         changePercentage: aiData?.change_percentage ?? null,
-        currentMinValue: aiData?.price_range?.min ?? null,
-        currentMaxValue: aiData?.price_range?.max ?? null,
+        currentValue,
+        currentMinValue,
+        currentMaxValue,
         currency,
         fetchedAt: new Date().toISOString(),
       };

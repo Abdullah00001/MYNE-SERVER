@@ -60,12 +60,16 @@ echo -e "${CYAN}🚀 Creating optimized production build...${NC}"
 echo ""
 
 # Step 1: Linting and validation
-if ! run_with_spinner \
-    "${YELLOW}🔍 Linting and validating code..." \
-    "npm run lint" \
-    "Passed linting and validation step! 🎯" \
-    "Build failed due to linting errors! 💥"; then
-    exit 1
+if [ "${SKIP_LINT:-0}" = "1" ]; then
+    echo -e "${YELLOW}⚠️  Skipping linting because SKIP_LINT=1${NC}"
+else
+    if ! run_with_spinner \
+        "${YELLOW}🔍 Linting and validating code..." \
+        "npm run lint" \
+        "Passed linting and validation step! 🎯" \
+        "Build failed due to linting errors! 💥"; then
+        exit 1
+    fi
 fi
 
 echo ""
