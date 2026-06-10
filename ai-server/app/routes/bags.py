@@ -12,6 +12,9 @@ from app.services.serp_service_copy import fetch_prices_from_image
 
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
+from fastapi.responses import StreamingResponse
+import json
+ 
 
 router = APIRouter()
 
