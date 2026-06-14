@@ -44,7 +44,7 @@ export const docsUpload = multer({
 // Base upload configuration
 const baseUpload = multer({
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 10 }, // Global max limit
+  limits: { fileSize: 100 * 1024 * 1024, files: 10 }, // Global max limit
   fileFilter: imageFileFilter,
 });
 
