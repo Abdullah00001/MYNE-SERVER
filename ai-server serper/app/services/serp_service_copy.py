@@ -15,8 +15,9 @@ PRIORITY_SITES = [
     "vestiairecollective.com",
     "therealreal.com",
     "sothebys.com",
-    "fashionphile.com"
-    # add more here
+    "fashionphile.com",
+    "loveluxury.co.uk",   # ← add
+    "loveluxury.ae",      # ← add
 ]
 
 # ─────────────────────────────────────────
@@ -42,6 +43,8 @@ DOMAIN_COUNTRY = {
     "collector-square.com": "🇫🇷 France",
     "sacprimeur.com": "🇫🇷 France",
     "bagborroworsteal.com": "🇺🇸 USA",
+    "loveluxury.co.uk": "🇬🇧 UK",
+    "loveluxury.ae": "🇦🇪 UAE",
 
     # Global
     "jamesedition.com": "🌐 Global",

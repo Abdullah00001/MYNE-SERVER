@@ -681,8 +681,10 @@ def is_clean_url(url: str) -> bool:
 
 
 async def fetch_bag_image(query: str) -> dict:
+    import time
+    t0 = time.time()
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             res = await client.get(
                 "https://serpapi.com/search",
                 params={
@@ -695,6 +697,8 @@ async def fetch_bag_image(query: str) -> dict:
             )
             res.raise_for_status()
             data = res.json()
+        t1 = time.time()
+        print(f"[T] fetch_bag_image luxury={t1-t0:.2f}s | query={query[:50]}")
 
         for result in data.get("images_results", []):
             original = result.get("original", "")
@@ -702,10 +706,34 @@ async def fetch_bag_image(query: str) -> dict:
             if is_clean_url(original):
                 clean_thumb = thumbnail if is_clean_url(
                     thumbnail) else original
+                print(f"[T] fetch_bag_image DONE={t1-t0:.2f}s (luxury hit)")
                 return {"thumbnailUrl": clean_thumb, "imageUrl": original}
 
-        return {"thumbnailUrl": "", "imageUrl": ""}  # no fallback
+        # Fallback
+        async with httpx.AsyncClient(timeout=6) as client:
+            res = await client.get(
+                "https://serpapi.com/search",
+                params={
+                    "engine": "google_images",
+                    "q": query,
+                    "num": 10,
+                    "tbs": "itp:photo",
+                    "api_key": SERP_API_KEY,
+                }
+            )
+            res.raise_for_status()
+            data = res.json()
+        t2 = time.time()
+        print(f"[T] fetch_bag_image fallback={t2-t1:.2f}s total={t2-t0:.2f}s")
+
+        for result in data.get("images_results", []):
+            original = result.get("original", "")
+            thumbnail = result.get("thumbnail", "")
+            if is_clean_url(original):
+                return {"thumbnailUrl": thumbnail, "imageUrl": original}
+
+        return {"thumbnailUrl": "", "imageUrl": ""}
 
     except Exception as e:
-        print(f"[fetch_bag_image] failed: {e}")
+        print(f"[fetch_bag_image] failed after {time.time()-t0:.2f}s: {e}")
         return {"thumbnailUrl": "", "imageUrl": ""}
