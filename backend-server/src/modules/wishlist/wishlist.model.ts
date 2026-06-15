@@ -51,7 +51,7 @@ const WishlistSchema = new Schema<IWishlist>(
     },
     image: { type: String, required: true },
     currency: { type: String, required: true },
-    targetPrice: { type: Number, required: true },
+    targetPrice: { type: Number, default: null },
   },
   { timestamps: true }
 );

@@ -51,7 +51,7 @@ export const CreateWishSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']),
   note: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
-  targetPrice: z.number(),
+  targetPrice: z.number().optional(),
   image: z
     .string({
       error: 'Variant is required',
