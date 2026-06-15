@@ -1273,7 +1273,7 @@ export class UserBagService {
       });
 
       // 2. Search for existing model (case-insensitive)
-      let existingModel = await ModelModel.findOne({
+      const existingModel = await ModelModel.findOne({
         modelName: { $regex: new RegExp(`^${modelName}$`, 'i') },
       });
 

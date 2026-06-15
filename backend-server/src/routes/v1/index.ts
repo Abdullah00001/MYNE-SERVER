@@ -12,6 +12,7 @@ import ProfileRoutes from '@/modules/profile/profile.routes';
 import UserRoutes from '@/modules/user/user.routes';
 import UserBagRoutes from '@/modules/userBag/userBag.routes';
 import WishlistRoutes from '@/modules/wishlist/wishlist.routes';
+import ColorsRoutes from '@/modules/colors/colors.routes'
 
 const routes: Router[] = [
   AuthRoutes,
@@ -26,6 +27,7 @@ const routes: Router[] = [
   UserBagRoutes,
   DashboardRoutes,
   ImageRoutes,
+  ColorsRoutes
 ];
 
 const v1Routes = Router();

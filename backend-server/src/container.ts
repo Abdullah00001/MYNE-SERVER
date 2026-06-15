@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 
 // AUTO-IMPORTS (DO NOT REMOVE)
+import { registerColorsModule } from '@/modules/colors/colors.container'
 import { registerAdminBagModule } from '@/modules/adminBag/adminBag.container';
 import { registerAuthModule } from '@/modules/auth/auth.container';
 import { registerBlogModule } from '@/modules/blog/blog.container';
@@ -30,6 +31,7 @@ export const registerContainers = (): void => {
   registerBrandModule();
   registerWishlistModule();
   registerUserBagModule();
+  registerColorsModule()
 };
 
 export default registerContainers;
