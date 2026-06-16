@@ -5,11 +5,17 @@ from app.services.serp_service import fetch_all_market_prices
 from app.services.serp_service_copy import detect_currency_symbol, extract_price, fetch_prices_from_image, to_eur
 from app.services.brand_config import get_brand_config
 
-from datetime import datetime
+from datetime import date
+from dateutil.relativedelta import relativedelta
 from typing import List
 
 
-today = datetime.today().strftime("%B %Y")  # e.g. "April 2026"
+today = date.today()
+end_month = today.replace(day=1) - relativedelta(months=1)
+start_month = end_month - relativedelta(months=11)
+
+start_str = start_month.strftime("%b %Y")
+end_str = end_month.strftime("%b %Y")
 
 # ─────────────────────────────────────────
 # GPT HELPER
@@ -165,13 +171,19 @@ async def get_price_history(
 ) -> list[dict]:
     """
     Today is {today}. Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month).
-    The history MUST start from June 2025 and end at April 2026. Do not use any other date range.
+    The history MUST start from {start_str} and end at {end_str}. Do not use any other date range.
     The prices should reflect real luxury market behavior:
     - Gradual appreciation or depreciation trends (not random jumps)
     - Seasonal effects if applicable (e.g. slower summer, stronger Q4)
     - Color/leather rarity premium if this is a sought-after combination
     - Month-to-month changes should be realistic: typically 1-4% max between adjacent months
     """
+
+    today = date.today()
+    end_month = today.replace(day=1) - relativedelta(months=1)
+    start_month = end_month - relativedelta(months=11)
+    start_str = start_month.strftime("%b %Y")
+    end_str = end_month.strftime("%b %Y")
 
     prompt = f"""
 
@@ -187,7 +199,7 @@ async def get_price_history(
     Current Price (today): {current_price} EUR
 
     Generate a realistic monthly price history for the LAST 12 MONTHS (not including current month) anchored to current_price..
-    The history MUST start from April 2025 and end at March 2026. Do not use any other date range.
+    The history MUST start from {start_str} and end at {end_str}. Do not use any other date range.
     The prices should reflect real luxury market behavior:
     - Gradual appreciation or depreciation trends (not random jumps)
     - Seasonal effects if applicable (e.g. slower summer, stronger Q4)
@@ -196,7 +208,7 @@ async def get_price_history(
 
     Return ONLY a JSON object with:
     - history: array of exactly 12 objects in chronological order, each with:
-        - period: string formatted as "Mon YYYY" e.g. "Apr 2025", "May 2025" ... "Mar 2026"
+        - - period: string formatted as "Mon YYYY" e.g. "{start_str}", ... "{end_str}"
         - avg_price: number in EUR (integer, no decimals)
     - trend: "appreciating" | "depreciating" | "stable"
     - trend_note: string (1 sentence about the overall trend)   

@@ -19,13 +19,20 @@ const imageFileFilter = (
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  if (
-    file.mimetype === 'image/jpg' ||
-    file.mimetype === 'image/jpeg' ||
-    file.mimetype === 'image/png' ||
-    file.mimetype === 'image/webp' ||
-    file.mimetype === 'image/svg+xml'
-  ) {
+  const ALLOWED_MIME_TYPES = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'image/svg+xml',
+    'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/heic', // Apple high-efficiency format
+    'image/heif', // High-efficiency image file
+    'image/avif', // Modern highly compressed web format
+  ];
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(

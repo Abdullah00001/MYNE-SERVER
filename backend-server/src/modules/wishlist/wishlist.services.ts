@@ -116,6 +116,7 @@ export class WishlistService {
         {
           $facet: {
             wishes: [
+              { $sort: { createdAt: -1 } },
               { $skip: skip },
               { $limit: queryLimit },
               {
