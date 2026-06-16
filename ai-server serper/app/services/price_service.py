@@ -179,6 +179,12 @@ async def get_price_history(
     - Month-to-month changes should be realistic: typically 1-4% max between adjacent months
     """
 
+    today = date.today()
+    end_month = today.replace(day=1) - relativedelta(months=1)
+    start_month = end_month - relativedelta(months=11)
+    start_str = start_month.strftime("%b %Y")
+    end_str = end_month.strftime("%b %Y")
+
     prompt = f"""
 
     You are a luxury resale market analyst specializing in {brand} handbags.
@@ -202,7 +208,7 @@ async def get_price_history(
 
     Return ONLY a JSON object with:
     - history: array of exactly 12 objects in chronological order, each with:
-        - period: string formatted as "Mon YYYY" e.g. "Apr 2025", "May 2025" ... "Mar 2026"
+        - - period: string formatted as "Mon YYYY" e.g. "{start_str}", ... "{end_str}"
         - avg_price: number in EUR (integer, no decimals)
     - trend: "appreciating" | "depreciating" | "stable"
     - trend_note: string (1 sentence about the overall trend)   
