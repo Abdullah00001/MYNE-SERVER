@@ -6,24 +6,21 @@ from app.config import OPENAI_API_KEY, SERP_API_KEY
 import logging
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────
-# PRIORITY SITES
-# ─────────────────────────────────────────
-
 PRIORITY_SITES = [
     "madisonavenuecouture.com",
     "vestiairecollective.com",
     "therealreal.com",
     "sothebys.com",
-    "fashionphile.com"
-    # add more here
+    "fashionphile.com",
+    "loveluxury.co.uk",   # ← add
+    "loveluxury.ae",      # ← add
 ]
-
+ 
 # ─────────────────────────────────────────
 # Domain SITES
 # ─────────────────────────────────────────
-
-
+ 
+ 
 DOMAIN_COUNTRY = {
     "madisonavenuecouture.com": "🇺🇸 USA",
     "vestiairecollective.com": "🇫🇷 France",
@@ -42,28 +39,30 @@ DOMAIN_COUNTRY = {
     "collector-square.com": "🇫🇷 France",
     "sacprimeur.com": "🇫🇷 France",
     "bagborroworsteal.com": "🇺🇸 USA",
-
+    "loveluxury.co.uk": "🇬🇧 UK",
+    "loveluxury.ae": "🇦🇪 UAE",
+ 
     # Global
     "jamesedition.com": "🌐 Global",
     "catawiki.com": "🌐 Global",
     "christies.com": "🌐 Global",
     "bonhams.com": "🌐 Global",
-
+ 
     # US
     "poshmark.com": "🇺🇸 USA",
     "yoogi.com": "🇺🇸 USA",
     "portero.com": "🇺🇸 USA",
     "tradesy.com": "🇺🇸 USA",
-
+ 
     # UK
     "sellmybag.co.uk": "🇬🇧 UK",
     "designerexchange.co.uk": "🇬🇧 UK",
     "hardly-ever-worn-it.com": "🇬🇧 UK",
-
+ 
     # France / Europe
     "videdressing.com": "🇫🇷 France",
     "collector-square.com": "🇫🇷 France",
-
+ 
     # Japan (huge luxury resale market)
     "brandoff.jp": "🇯🇵 Japan",
     "komehyo.jp": "🇯🇵 Japan",
