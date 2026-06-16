@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const mongoObjectIdRegex = /^[a-fA-F0-9]{24}$/;
-const modelNameRegex = /^[a-zA-Z0-9\s\-_.]+$/;
+const modelNameRegex = /^[\p{L}0-9\s\-_.]+$/u;
 
 const modelNameSchema = z
   .string({
