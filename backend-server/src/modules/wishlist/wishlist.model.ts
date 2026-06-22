@@ -4,6 +4,7 @@ import {
   IWishlist,
   IPriceDescription,
 } from '@/modules/wishlist/wishlist.types';
+import { CURRENCIES } from '@/const';
 
 const PriceDescriptionSchema = new Schema<IPriceDescription>(
   {
@@ -11,6 +12,38 @@ const PriceDescriptionSchema = new Schema<IPriceDescription>(
     targetPrice: { type: Number, required: true },
     retailPrice: { type: Number, default: null },
     marketValue: { type: Number, default: null },
+  },
+  { _id: false }
+);
+
+export enum TrendEnum {
+  UP = 'up',
+  DOWN = 'down',
+  STABLE = 'stable',
+}
+export type Currency = (typeof CURRENCIES)[number];
+
+export type TAdminBagPriceStatus = {
+  currentMinValue: number;
+  currentMaxValue: number;
+  currency: Currency;
+  changePercentage: number;
+  trend: TrendEnum;
+  fetchedAt: string | null;
+};
+
+export const PriceStatusSchema = new Schema<TAdminBagPriceStatus>(
+  {
+    trend: { type: String, enum: TrendEnum, default: null },
+    changePercentage: { type: Number, default: null },
+    currentMinValue: { type: Number, default: null },
+    currentMaxValue: { type: Number, default: null },
+    currency: {
+      type: String,
+      enum: CURRENCIES,
+      default: 'EUR',
+    },
+    fetchedAt: { type: String, default: null },
   },
   { _id: false }
 );
@@ -43,6 +76,7 @@ const WishlistSchema = new Schema<IWishlist>(
     variant: { type: String, default: null },
     specialVariant: { type: String, default: null },
     priority: { type: String, enum: ['low', 'medium', 'high'], required: true },
+    priceStatus: { type: PriceStatusSchema, default: null },
     note: { type: String, default: null },
     status: {
       type: String,
@@ -52,6 +86,7 @@ const WishlistSchema = new Schema<IWishlist>(
     image: { type: String, required: true },
     currency: { type: String, required: true },
     targetPrice: { type: Number, default: null },
+    imageSearchQuery: { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -1,12 +1,14 @@
 import { JwtPayload } from 'jsonwebtoken';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { injectable } from 'tsyringe';
 
 import { CreateWishDTO } from '@/modules/wishlist/wishlist.dto';
 import Wishlist from '@/modules/wishlist/wishlist.model';
 import {
+  Currency,
   IPriceDescription,
   IWishlist,
+  TAdminBagPriceStatus,
   TGetWishlistResponse,
   TWishlistActions,
 } from '@/modules/wishlist/wishlist.types';
@@ -18,6 +20,12 @@ import {
 } from '@/modules/wishlist/wishlist.schemas';
 import { IUser } from '@/modules/auth/auth.types';
 import { Schema } from 'mongoose';
+import axios from 'axios';
+import { env } from '@/env';
+import Brand from '@/modules/brand/brand.model';
+import ModelModel from '@/modules/model/model.model';
+import { getRedisClient } from '@/configs/redis.config';
+import { ValuationResponse } from '@/modules/userBag/userBag.types';
 
 @injectable()
 export class WishlistService {
@@ -47,10 +55,63 @@ export class WishlistService {
       targetPrice,
       variant,
       note,
+      imageSearchQuery,
       image,
     } = payload;
     try {
+      const aiFields: {
+        priceStatus?: TAdminBagPriceStatus;
+      } = {};
+      const redisClient = getRedisClient();
+      const wishId = new mongoose.Types.ObjectId();
+      const brand = await Brand.findOne({ _id: brandId });
+      if (!brand) throw new Error('Brand Not Found');
+      const model = await ModelModel.findOne({ _id: modelId });
+      if (!model) throw new Error('Model Not Found');
+      const imageSQuery = imageSearchQuery
+        ? imageSearchQuery
+        : this.systemUtils.buildImageSearchQuery({
+            brand: brand?.brandName as string,
+            model: model?.modelName as string,
+            bagColor: color,
+            condition,
+            hardwareColor,
+            material,
+            size,
+            specialVariant,
+            variant,
+          });
+      const plainResponse = await axios.post(
+        `${env.AI_SERVER_URL}/bags/price/by-image`,
+        {
+          image_url: image,
+          image_search_query: imageSQuery,
+          purchase_price: '',
+        }
+      );
+
+      const aiData = plainResponse.data?.data;
+      await redisClient.set(
+        `bag-price-${wishId}`,
+        JSON.stringify(aiData),
+        'PX',
+        24 * 60 * 60 * 1000
+      );
+      await redisClient.del(`bag-price-${wishId}`);
+      const priceStatuscurrency: Currency = aiData?.currency ?? null;
+
+      /* ---------------------------- priceStatus build --------------------------- */
+
+      aiFields.priceStatus = {
+        trend: aiData?.trend ?? null,
+        changePercentage: aiData?.change_percentage ?? null,
+        currentMinValue: aiData?.price_range?.min ?? null,
+        currentMaxValue: aiData?.price_range?.max ?? null,
+        currency: priceStatuscurrency,
+        fetchedAt: new Date().toISOString(),
+      };
       const newWish = new Wishlist({
+        _id: wishId,
         userId: user._id,
         brandId: new Types.ObjectId(brandId),
         modelId: new Types.ObjectId(modelId),
@@ -66,6 +127,7 @@ export class WishlistService {
         condition,
         currency,
         hardwareColor,
+        ...aiFields,
       });
       await newWish.save();
       await newWish.populate([
@@ -283,6 +345,77 @@ export class WishlistService {
       throw new Error(
         'An unexpected error occurred on change wish status service'
       );
+    }
+  }
+
+  async getSingleWish(wish: IWishlist) {
+    try {
+      const redisClient = getRedisClient();
+
+      let aiResponsePayload: ValuationResponse;
+      const cacheAiResponse = await redisClient.get(`bag-price-${wish._id}`);
+      if (cacheAiResponse) {
+        aiResponsePayload = JSON.parse(cacheAiResponse) as ValuationResponse;
+      } else {
+        const plainResponse = await axios.post(
+          `${env.AI_SERVER_URL}/bags/price/by-image`,
+          {
+            image_url: wish.image,
+            image_search_query: wish.imageSearchQuery,
+            purchase_price: '',
+          }
+        );
+        const freshAiResponsePayload = plainResponse.data?.data;
+        console.log(freshAiResponsePayload);
+        await redisClient.set(
+          `bag-price-${wish._id}`,
+          JSON.stringify(freshAiResponsePayload),
+          'PX',
+          24 * 60 * 60 * 1000
+        );
+        aiResponsePayload = freshAiResponsePayload;
+      }
+
+      const allSites =
+        aiResponsePayload?.sources_used?.flatMap(
+          (s: { type: string; sites: string[] }) => s.sites
+        ) ?? [];
+
+      const priceStatus = {
+        trend: aiResponsePayload?.trend ?? null,
+        changePercentage: aiResponsePayload?.change_percentage ?? null,
+        currentMinValue: aiResponsePayload?.price_range?.min ?? null,
+        currentMaxValue: aiResponsePayload?.price_range?.max ?? null,
+        currency: aiResponsePayload?.currency ?? null,
+        fetchedAt: new Date().toISOString(),
+      };
+
+      const marketSources: {
+        eur: number;
+        original: number;
+        currency: string;
+        source: string;
+        url: string;
+        title: string;
+        country: string;
+        condition: string;
+      }[] = aiResponsePayload?.market_sources?.Search_Results || [];
+
+      return {
+        ...wish,
+        aiSuggestedPrice:
+          Math.round(
+            (((priceStatus.currentMinValue ?? 0) +
+              (priceStatus.currentMaxValue ?? 0)) /
+              2) *
+              100
+          ) / 100,
+        priceStatus,
+        source: allSites,
+        marketSources,
+      };
+    } catch (error) {
+      throw error;
     }
   }
 }

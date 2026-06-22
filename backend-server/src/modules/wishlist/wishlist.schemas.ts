@@ -59,6 +59,7 @@ export const CreateWishSchema = z.object({
     .min(1, {
       error: 'Variant cannot be empty',
     }),
+  imageSearchQuery: z.string().nullable(),
 });
 
 export const UpdateWishSchema = z.object({

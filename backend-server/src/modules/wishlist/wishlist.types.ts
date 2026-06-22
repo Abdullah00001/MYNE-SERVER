@@ -6,6 +6,8 @@ import {
   TPaginationLinks,
 } from '@/modules/brand/brand.types';
 import { IModel } from '@/modules/model/model.types';
+import { IYearValue } from '@/modules/userBag/userBag.types';
+import { CURRENCIES } from '@/const';
 
 export enum WishPriority {
   LOW = 'low',
@@ -27,6 +29,24 @@ export interface IPriceDescription {
   marketValue?: number | null;
 }
 
+export enum TrendEnum {
+  UP = 'up',
+  DOWN = 'down',
+  STABLE = 'stable',
+}
+
+export type Currency = (typeof CURRENCIES)[number];
+
+
+export type TAdminBagPriceStatus = {
+  currentMinValue: number;
+  currentMaxValue: number;
+  currency: Currency;
+  changePercentage: number;
+  trend: TrendEnum;
+  fetchedAt: string | null;
+};
+
 export interface IWishlist {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
@@ -45,9 +65,11 @@ export interface IWishlist {
   priority: WishPriority;
   note?: string;
   status?: PurchaseStatus;
+  priceStatus: TAdminBagPriceStatus;
   image: string;
   createdAt: Date;
   updatedAt: Date;
+  imageSearchQuery: string;
 }
 
 export type TWishlistActions = {
