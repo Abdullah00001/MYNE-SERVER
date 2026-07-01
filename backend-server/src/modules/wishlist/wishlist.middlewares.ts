@@ -21,7 +21,7 @@ export class WishlistMiddleware extends BaseMiddleware {
     const { id } = req.params;
     const wish = await Wishlist.findById(id)
       .populate('brandId')
-      .populate('modelId');
+      .populate('modelId').lean();
     if (!wish) {
       res.status(404).json({
         success: false,
