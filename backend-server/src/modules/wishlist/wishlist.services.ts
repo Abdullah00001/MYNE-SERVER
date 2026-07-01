@@ -110,6 +110,10 @@ export class WishlistService {
         currency: priceStatuscurrency,
         fetchedAt: new Date().toISOString(),
       };
+      const allSites =
+        aiData?.sources_used?.flatMap(
+          (s: { type: string; sites: string[] }) => s.sites
+        ) ?? [];
       const newWish = new Wishlist({
         _id: wishId,
         userId: user._id,
@@ -128,6 +132,7 @@ export class WishlistService {
         currency,
         hardwareColor,
         imageSearchQuery: imageSQuery,
+        totalListingCount: allSites.length > 0 ? allSites.length : 0,
         ...aiFields,
       });
       await newWish.save();
@@ -401,6 +406,14 @@ export class WishlistService {
         country: string;
         condition: string;
       }[] = aiResponsePayload?.market_sources?.Search_Results || [];
+      await Wishlist.findOneAndUpdate(
+        { _id: wish._id },
+        {
+          priceStatus,
+          totalListingCount: allSites.length > 0 ? allSites.length : 0,
+        },
+        { new: true }
+      );
 
       return {
         ...wish,

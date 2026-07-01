@@ -87,6 +87,7 @@ const WishlistSchema = new Schema<IWishlist>(
     currency: { type: String, required: true },
     targetPrice: { type: Number, default: null },
     imageSearchQuery: { type: String, default: null },
+    totalListingCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

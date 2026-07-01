@@ -70,6 +70,7 @@ export interface IWishlist {
   createdAt: Date;
   updatedAt: Date;
   imageSearchQuery: string;
+  totalListingCount?: number;
 }
 
 export type TWishlistActions = {
