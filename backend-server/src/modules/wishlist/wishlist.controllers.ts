@@ -83,6 +83,7 @@ export class WishlistController extends BaseController {
   private async _getOneWish(req: Request, res: Response): Promise<void> {
     const wish = req.wish;
     const data = this.wishlistService.getSingleWish(wish);
+    console.log(data);
     res.status(200).json({
       status: 200,
       success: true,
