@@ -226,6 +226,8 @@ export class WishlistService {
                   image: 1,
                   createdAt: 1,
                   updatedAt: 1,
+                  totalListingCount: 1,
+                  priceStatus: 1,
                 },
               },
             ],
