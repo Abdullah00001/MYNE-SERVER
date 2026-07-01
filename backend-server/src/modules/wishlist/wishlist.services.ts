@@ -362,7 +362,7 @@ export class WishlistService {
           {
             image_url: wish.image,
             image_search_query: wish.imageSearchQuery,
-            purchase_price: '',
+            purchase_price: null,
           }
         );
         const freshAiResponsePayload = plainResponse.data?.data;
