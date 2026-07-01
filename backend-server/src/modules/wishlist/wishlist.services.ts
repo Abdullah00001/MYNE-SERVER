@@ -86,7 +86,7 @@ export class WishlistService {
         {
           image_url: image,
           image_search_query: imageSQuery,
-          purchase_price: '',
+          purchase_price: null,
         }
       );
 
