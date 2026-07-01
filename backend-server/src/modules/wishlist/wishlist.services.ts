@@ -127,6 +127,7 @@ export class WishlistService {
         condition,
         currency,
         hardwareColor,
+        imageSearchQuery: imageSQuery,
         ...aiFields,
       });
       await newWish.save();
