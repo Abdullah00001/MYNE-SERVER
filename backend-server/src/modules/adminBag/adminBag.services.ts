@@ -505,7 +505,10 @@ export class AdminBagService {
         );
         aiResponsePayload = freshAiResponsePayload;
       }
-
+      const allSites =
+        aiResponsePayload?.sources_used?.flatMap(
+          (s: { type: string; sites: string[] }) => s.sites
+        ) ?? [];
       const marketSources: {
         eur: number;
         original: number;
@@ -513,12 +516,9 @@ export class AdminBagService {
         source: string;
         url: string;
         title: string;
+        country: string;
+        condition: string;
       }[] = aiResponsePayload?.market_sources?.Search_Results || [];
-
-      const allSites =
-        aiResponsePayload?.sources_used?.flatMap(
-          (s: { type: string; sites: string[] }) => s.sites
-        ) ?? [];
 
       const priceStatus = {
         trend: aiResponsePayload?.trend ?? null,
@@ -542,7 +542,7 @@ export class AdminBagService {
           ) / 100,
         priceStatus,
         source: allSites,
-        marketSources: marketSources.map((item) => item.url),
+        marketSources: marketSources,
       };
     } catch (error) {
       if (error instanceof Error) throw error;
