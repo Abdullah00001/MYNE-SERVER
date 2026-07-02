@@ -138,7 +138,7 @@ export class AdminBagService {
 
       aiFields.historicalValue = historicalValue;
       const newBag = new UserCollection({
-        userId: user._id,
+        userId: user.sub,
         brandId,
         bagColor,
         modelId,
