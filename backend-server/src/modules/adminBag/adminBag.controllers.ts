@@ -52,13 +52,12 @@ export class AdminBagController extends BaseController {
     return;
   }
 
-
   private async _getOneAdminBag(req: Request, res: Response): Promise<void> {
-    const { year } = req.query as { year?: string };
+    const { period } = req.query as { period: string };
     const collection = req.adminBag;
     const data = await this.adminBagService.getOneAdminBag({
       collection,
-      year,
+      period,
     });
     console.log(data);
     res.status(200).json({
