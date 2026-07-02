@@ -56,12 +56,14 @@ router
     authMiddleware.checkAccessToken,
     authMiddleware.checkUserAccountStatus,
     uploadSingle('collection_image'),
+    handleMulterError,
     controller.uploadCollectionSingleImage
   )
   .put(
     authMiddleware.checkAccessToken,
     authMiddleware.checkUserAccountStatus,
     uploadArray('collection_images', 10),
+    handleMulterError,
     controller.uploadCollectionMultipleImages
   );
 
@@ -142,6 +144,7 @@ router
     authMiddleware.checkUserAccountStatus,
     middleware.findBagCollectionById,
     uploadFields(manualBagCreationStepFourImageFields),
+    handleMulterError,
     validateReqBody(createBagStepFourSchema),
     controller.createCollectionStepFour
   );

@@ -11,17 +11,14 @@ import AdminBag from '@/modules/adminBag/adminBag.model';
 import {
   IAdminBags,
   TActions,
-  TAdminBagPriceStatus,
   TGetAdminBagsResponse,
 } from '@/modules/adminBag/adminBag.types';
+import { TAdminBagPriceStatus } from '@/modules/adminBag/adminBag.model';
 import { IUser } from '@/modules/auth/auth.types';
 import { Role } from '@/types/jwt.types';
 import { S3Utils } from '@/utils/s3.utils';
 import { SystemUtils } from '@/utils/system.utils';
-import {
-  TCreateAdminBagPayload,
-  TUpdateAdminBagPayload,
-} from '@/modules/adminBag/adminBag.schemas';
+import { TCreateAdminBag } from '@/modules/adminBag/adminBag.schemas';
 import { env } from '@/env';
 import { Currency } from '@/modules/adminBag/adminBag.types';
 import UserCollection from '@/modules/userBag/userBag.model';
@@ -50,7 +47,7 @@ export class AdminBagService {
     file,
     user,
   }: {
-    payload: TCreateAdminBagPayload;
+    payload: TCreateAdminBag;
     file: string;
     user: JwtPayload;
   }): Promise<unknown> {
@@ -71,64 +68,48 @@ export class AdminBagService {
       priceStatus?: TAdminBagPriceStatus;
       historicalValue?: Record<string, IYearValue>;
     } = {};
+    const redisClient = getRedisClient();
     const filePath = join(__dirname, '../../../public/temp', file);
     const mimeType = extname(filePath);
     const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
     try {
-      const url = await this.s3Utils.singleUpload({
+      const image = await this.s3Utils.singleUpload({
         filePath,
         key,
         mimeType,
       });
-      const brand = await Brand.findOne({ _id: brandId });
-      if (!brand) throw new Error('Brand Not Found');
-      const model = await ModelModel.findOne({ _id: modelId });
-      if (!model) throw new Error('Model Not Found');
-      const imageSearchQuery = this.systemUtils.buildImageSearchQuery({
-        brand: brand?.brandName,
-        model: model?.modelName,
+      const brand = await Brand.findById(brandId).lean();
+      const model = await ModelModel.findById(modelId).lean();
+      const imageSQuery = this.systemUtils.buildImageSearchQuery({
+        brand: brand?.brandName as string,
+        model: model?.modelName as string,
         bagColor,
-        condition: condition,
-        material,
+        condition,
         hardwareColor,
-        size: size,
-        variant,
+        material,
+        size,
         specialVariant,
+        variant,
       });
       const plainResponse = await axios.post(
         `${env.AI_SERVER_URL}/bags/price/by-image`,
         {
-          image_url: url,
-          image_search_query: imageSearchQuery,
+          image_url: image,
+          image_search_query: imageSQuery,
           purchase_price: null,
         }
       );
-      const aiData = plainResponse.data?.data;
+      const aiResponsePayload = plainResponse.data?.data;
       const priceHistory: { period: string; avg_price: number }[] =
-        aiData?.price_history?.history ?? [];
-      const currency: Currency = aiData?.currency ?? null;
-      const currentMinValue = aiData?.price_range?.min ?? null;
-      const currentMaxValue = aiData?.price_range?.max ?? null;
-      const currentValue =
-        currentMinValue != null && currentMaxValue != null
-          ? (currentMinValue + currentMaxValue) / 2
-          : (currentMinValue ?? currentMaxValue ?? 0);
-
+        aiResponsePayload?.price_history?.history ?? [];
+      const currency: Currency = aiResponsePayload?.currency ?? null;
       /* ---------------------------- priceStatus build --------------------------- */
-      const marketSources: {
-        eur: number;
-        original: number;
-        currency: string;
-        source: string;
-        url: string;
-        title: string;
-      }[] = aiData?.market_sources?.Search_Results || [];
+
       aiFields.priceStatus = {
-        trend: aiData?.trend ?? null,
-        changePercentage: aiData?.change_percentage ?? null,
-        currentValue,
-        currentMinValue,
-        currentMaxValue,
+        trend: aiResponsePayload?.trend ?? null,
+        changePercentage: aiResponsePayload?.change_percentage ?? null,
+        currentMinValue: aiResponsePayload?.price_range?.min ?? null,
+        currentMaxValue: aiResponsePayload?.price_range?.max ?? null,
         currency,
         fetchedAt: new Date().toISOString(),
       };
@@ -139,7 +120,6 @@ export class AdminBagService {
         string,
         IYearValue
       >;
-
       for (const entry of priceHistory) {
         const [monthAbbr, year] = entry.period.split(' ');
         const monthKey = monthNameMap[monthAbbr];
@@ -157,31 +137,35 @@ export class AdminBagService {
       }
 
       aiFields.historicalValue = historicalValue;
-      const newAdminBag = new UserCollection({
-        variant,
+      const newBag = new UserCollection({
+        userId: user._id,
         brandId,
-        modelId,
         bagColor,
+        modelId,
         material,
         hardwareColor,
         size,
         condition,
-        primaryImage: url,
-        isAdmin: true,
-        publishStatus: PublishStatus.PUBLISHED,
+        variant,
         specialVariant,
-        imageSearchQuery,
         yearsOfBag,
         wearChecklist,
-        // productionYear: priceData.productionYear,
+        imageSearchQuery: imageSQuery,
         ...aiFields,
-        userId: new Types.ObjectId(user._id as string),
+        primaryImage: image,
+        thumbnailImage: image,
+        images: [image],
+        isAdmin: true,
+        publishStatus: PublishStatus.PUBLISHED,
       });
-      await newAdminBag.save();
-      return {
-        ...newAdminBag,
-        marketSources: marketSources.map((item) => item.url),
-      };
+      await redisClient.set(
+        `bag-price-${newBag._id}`,
+        JSON.stringify(aiResponsePayload),
+        'PX',
+        24 * 60 * 60 * 1000
+      );
+      await newBag.save();
+      return newBag;
     } catch (error) {
       await this.s3Utils.singleDelete({ key });
       if (error instanceof Error) throw error;
@@ -352,56 +336,6 @@ export class AdminBagService {
     } catch (error) {
       if (error instanceof Error) throw error;
       throw new Error('Unknown Error Occurred In Fetching Admin Bags Service');
-    }
-  }
-
-  async deleteAdminBag({ bag }: { bag: IUserBag }): Promise<void> {
-    try {
-      const key = this.systemUtils.extractS3KeyFromUrl(bag.primaryImage);
-      await this.s3Utils.singleDelete({ key });
-      await UserCollection.findByIdAndDelete(bag._id);
-    } catch (error) {
-      if (error instanceof Error) throw error;
-      throw new Error('Unknown Error Occurred In Admin Bag Deletion Service');
-    }
-  }
-
-  async updateAdminBag({
-    bag,
-    file,
-  }: {
-    bag: IUserBag;
-    file?: string;
-  }): Promise<unknown> {
-    let bagImage = bag.primaryImage;
-    try {
-      if (file) {
-        if (bagImage) {
-          const oldKey = this.systemUtils.extractS3KeyFromUrl(bagImage);
-          await this.s3Utils.singleDelete({ key: oldKey });
-        }
-        const filePath = join(__dirname, '../../../public/temp', file);
-        const mimeType = extname(filePath);
-        const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
-        bagImage = await this.s3Utils.singleUpload({
-          filePath,
-          key,
-          mimeType,
-        });
-      }
-
-      const data = await UserCollection.findByIdAndUpdate(
-        bag._id,
-        {
-          primaryImage: bagImage,
-        },
-        { new: true }
-      );
-      if (!data) throw new Error('Admin Bag Not Found For Update');
-      return data;
-    } catch (error) {
-      if (error instanceof Error) throw error;
-      throw new Error('Unknown Error Occurred In Update Bag Service');
     }
   }
 
