@@ -18,6 +18,7 @@ export class ProfileController extends BaseController {
   public changePassword: RequestHandler;
   public changeProfileInfo: RequestHandler;
   public getProfileInfo: RequestHandler;
+  public deleteAccount: RequestHandler;
 
   constructor(private readonly profileService: ProfileService) {
     super();
@@ -26,6 +27,7 @@ export class ProfileController extends BaseController {
     this.changePassword = this.wrap(this.__changePassword);
     this.changeProfileInfo = this.wrap(this.__changeProfileInfo);
     this.getProfileInfo = this.wrap(this.__getProfileInfo);
+    this.deleteAccount = this.wrap(this.__deleteAccount);
   }
 
   private async _uploadAvatar(req: Request, res: Response): Promise<void> {
@@ -88,6 +90,15 @@ export class ProfileController extends BaseController {
     res
       .status(200)
       .json({ success: true, message: 'Profile info retrieve successful', data });
+    return;
+  }
+
+  private async __deleteAccount(req: Request, res: Response): Promise<void> {
+    const user = req.user as IUser;
+    await this.profileService.deleteAccount({ user });
+    res
+      .status(200)
+      .json({ success: true, message: 'Account deleted permanently successfully' });
     return;
   }
 }

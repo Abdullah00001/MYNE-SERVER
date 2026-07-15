@@ -64,6 +64,13 @@ router
     controller.getProfileInfo
   );
 
+router.delete(
+  '/profile/account',
+  authMiddleware.checkAccessToken,
+  authMiddleware.checkUserAccountStatus,
+  controller.deleteAccount
+);
+
 // Admin Routes
 
 router.post(

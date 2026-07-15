@@ -13,6 +13,9 @@ import { Role } from '@/types/jwt.types';
 import { PasswordUtils } from '@/utils/password.utils';
 import { S3Utils } from '@/utils/s3.utils';
 import { SystemUtils } from '@/utils/system.utils';
+import UserCollection from '@/modules/userBag/userBag.model';
+import Wishlist from '@/modules/wishlist/wishlist.model';
+import AdminBag from '@/modules/adminBag/adminBag.model';
 
 @injectable()
 export class ProfileService {
@@ -105,6 +108,27 @@ export class ProfileService {
     } catch (error) {
       if (error instanceof Error) throw error;
       throw new Error('Unknown Error Occurred In Change Profile Info Service');
+    }
+  }
+
+  async deleteAccount({ user }: { user: IUser }): Promise<void> {
+    try {
+      // Delete avatar from S3 if it exists
+      if (user.avatar) {
+        const key = this.systemUtils.extractS3KeyFromUrl(user.avatar);
+        await this.s3Utils.singleDelete({ key });
+      }
+
+      // Delete all related user data from database permanently
+      await UserCollection.deleteMany({ userId: user._id });
+      await Wishlist.deleteMany({ userId: user._id });
+      await AdminBag.deleteMany({ user: user._id });
+
+      // Delete the user from database
+      await User.findByIdAndDelete(user._id);
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error('Unknown Error Occurred In Delete Account Service');
     }
   }
 }
