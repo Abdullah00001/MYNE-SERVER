@@ -339,6 +339,69 @@ export class AdminBagService {
     }
   }
 
+  async deleteAdminBag({ bag }: { bag: IUserBag }): Promise<void> {
+    try {
+      if (bag.primaryImage) {
+        const key = this.systemUtils.extractS3KeyFromUrl(bag.primaryImage);
+        await this.s3Utils.singleDelete({ key });
+      }
+      await UserCollection.findByIdAndDelete(bag._id);
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error('Unknown Error Occurred In Admin Bag Deletion Service');
+    }
+  }
+
+  async updateAdminBag({
+    bag,
+    file,
+    payload,
+  }: {
+    bag: IUserBag;
+    file?: string;
+    payload?: any;
+  }): Promise<unknown> {
+    let bagImage = bag.primaryImage;
+    try {
+      if (file) {
+        if (bagImage) {
+          const oldKey = this.systemUtils.extractS3KeyFromUrl(bagImage);
+          await this.s3Utils.singleDelete({ key: oldKey });
+        }
+        const filePath = join(__dirname, '../../../public/temp', file);
+        const mimeType = extname(filePath);
+        const key = `admin-bags/${uuidv4()}/${Date.now()}${mimeType}`;
+        bagImage = await this.s3Utils.singleUpload({
+          filePath,
+          key,
+          mimeType,
+        });
+      }
+
+      const updateData: any = { primaryImage: bagImage };
+      if (payload) {
+        if (payload.bagColor) updateData.bagColor = payload.bagColor;
+        if (payload.variant) updateData.variant = payload.variant;
+        if (payload.material) updateData.material = payload.material;
+        if (payload.hardwareColor) updateData.hardwareColor = payload.hardwareColor;
+        if (payload.size) updateData.size = payload.size;
+        if (payload.condition) updateData.condition = payload.condition;
+        if (payload.specialVariant !== undefined) updateData.specialVariant = payload.specialVariant;
+      }
+
+      const data = await UserCollection.findByIdAndUpdate(
+        bag._id,
+        updateData,
+        { new: true }
+      );
+      if (!data) throw new Error('Admin Bag Not Found For Update');
+      return data;
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error('Unknown Error Occurred In Update Bag Service');
+    }
+  }
+
   async getOneAdminBag({
     collection,
     period,

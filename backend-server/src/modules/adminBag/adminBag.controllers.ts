@@ -12,12 +12,16 @@ export class AdminBagController extends BaseController {
   public createAdminBag: RequestHandler;
   public getAdminBags: RequestHandler;
   public getOneAdminBag: RequestHandler;
+  public updateAdminBag: RequestHandler;
+  public deleteAdminBag: RequestHandler;
 
   constructor(private readonly adminBagService: AdminBagService) {
     super();
     this.createAdminBag = this.wrap(this._createAdminBag);
     this.getAdminBags = this.wrap(this._getAdminBags);
     this.getOneAdminBag = this.wrap(this._getOneAdminBag);
+    this.updateAdminBag = this.wrap(this._updateAdminBag);
+    this.deleteAdminBag = this.wrap(this._deleteAdminBag);
   }
 
   private async _createAdminBag(req: Request, res: Response): Promise<void> {
@@ -65,6 +69,39 @@ export class AdminBagController extends BaseController {
       status: 200,
       message: 'One Admin Bags Retrieve Successful',
       data,
+    });
+    return;
+  }
+
+  private async _updateAdminBag(req: Request, res: Response): Promise<void> {
+    const bag = req.adminBag;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const file = files?.bagImage?.[0]?.filename;
+    const payload = req.body;
+    
+    const data = await this.adminBagService.updateAdminBag({
+      bag,
+      file,
+      payload
+    });
+    
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Admin Bag Updated Successfully',
+      data,
+    });
+    return;
+  }
+
+  private async _deleteAdminBag(req: Request, res: Response): Promise<void> {
+    const bag = req.adminBag;
+    await this.adminBagService.deleteAdminBag({ bag });
+    
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Admin Bag Deleted Successfully',
     });
     return;
   }

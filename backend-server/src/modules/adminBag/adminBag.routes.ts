@@ -28,7 +28,31 @@ router
     handleMulterError,
     validateReqBody(createAdminBagSchema),
     controller.createAdminBag
-)
+  )
+  .get(
+    authMiddleware.checkAdminAccessToken,
+    controller.getAdminBags
+  );
+
+router
+  .route('/admin/bags/:id')
+  .put(
+    authMiddleware.checkAdminAccessToken,
+    middleware.findAdminBagById,
+    uploadFields([{ name: 'bagImage', maxCount: 1, optional: true }]),
+    handleMulterError,
+    controller.updateAdminBag
+  )
+  .get(
+    authMiddleware.checkAdminAccessToken,
+    middleware.findAdminBagById,
+    controller.getOneAdminBag
+  )
+  .delete(
+    authMiddleware.checkAdminAccessToken,
+    middleware.findAdminBagById,
+    controller.deleteAdminBag
+  );
 
 // User Routes
 router
