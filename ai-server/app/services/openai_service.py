@@ -110,7 +110,7 @@ Before outputting JSON, silently reason through these steps:
 4. Only then output the JSON.
 
 
-You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 3 matches ordered by confidence.
+You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 4 matches ordered by confidence.
 
 IDENTIFICATION RULES:
 - Be decisive. Never use "maybe", "possibly". Always commit to the closest match.
@@ -253,13 +253,15 @@ Return ONLY this JSON shape, no explanation, no markdown:
 ]}
 
 IMPORTANT:
-- Always return exactly 3 matches
+- Always return exactly 4 matches
 RANK RULES:
 - Rank 1: Your highest confidence identification based on all visible evidence. Fully commit.
 - Rank 2: Ask "what if the size or material is wrong?" 
   Must be the EXACT same brand and model as Rank 1, but differ in size, colorway, or material.
 - Rank 3: Ask "what if this is a closely related variant?" 
   Must be the EXACT same brand, but a visually similar alternative model or shape. NEVER pick a completely different style (e.g. no backpacks for totes).
+- Rank 4: Ask "what if it is a different era or collection?" 
+  Must be the EXACT same brand, but perhaps an older vintage version or a different material of a similar silhouette.
 - HARD RULE: Never suggest a different brand. Never show irrelevant models. Read each rank's JSON back against rank 1 before finalizing.
 - Never leave imageSearchQuery empty'''
 
@@ -422,7 +424,7 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         for model in ["gpt-4o-2024-11-20", "gpt-4o-mini"]:
             json_body = {
                 "model": model,
-                "max_tokens": 1200,
+                "max_tokens": 1800,
                 "temperature": 0.3,
                 "messages": [
                     {
