@@ -146,7 +146,7 @@ def extract_condition(text: str) -> str:
 
 async def scrape_condition(url: str) -> str:
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=5, follow_redirects=True) as client:
             res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
             return extract_condition(res.text)
     except:
@@ -173,24 +173,23 @@ async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> li
     if not priced_sources:
         return [], []
 
-    items = [f"{i}: {p['title']} — {p['price_raw']}" for i,
+    items = [f"{i}: {p['title']} ({p['url']}) — {p['price_raw']}" for i,
              p in enumerate(priced_sources)]
     items_text = "\n".join(items)
 
     prompt = f"""You are a luxury bag expert.
 Target bag identified as: "{first_title}"
 
-Below are search results with titles and prices.
-Return ONLY the numbers of listings that are the EXACT same bag and also could be used for pricing reference.
+Below are search results with titles, URLs, and prices.
+Return ONLY the numbers of listings that are the EXACT same bag and could be used for pricing reference.
 
 Rules:
-- EXACT match = same brand, model, size → include
-- CLOSE match = same brand, same material/variant (e.g. Himalaya Crocodile), different size → include (useful for pricing reference)
-- REJECT only if completely different brand or completely unrelated model
-- REJECT: blog posts, guides, "how to buy" articles with no specific listing price
-- When in doubt, INCLUDE it
+- EXACT match = same brand, model, material, color, size, and EDITION → include. (If the target is a Limited Edition or Collaboration, standard versions MUST be rejected).
+- REJECT any listing that differs in size, material, color, model, or edition.
+- REJECT any generic category pages, search pages, or blog posts (e.g. URLs lacking a specific product ID, or titles like "Chanel Bags - Buy & Sell").
+- When in doubt, REJECT it. Do not include loose matches.
 
-The goal is to gather as many relevant price data points as possible for accurate valuation.
+The goal is to gather ONLY highly accurate comparables for valuation.
 
 Reply with only comma-separated numbers. If none match, reply "none".
 
@@ -198,12 +197,12 @@ Results:
 {items_text}"""
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             res = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
                          "Content-Type": "application/json"},
-                json={"model": "gpt-4o-mini",
+                json={"model": "gpt-4o",
                       "messages": [{"role": "user", "content": prompt}],
                       "max_tokens": 100}
             )

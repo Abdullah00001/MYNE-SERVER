@@ -32,7 +32,7 @@ async def call_gpt(prompt: str, max_tokens: int = 800) -> dict:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o-mini",
+                "model": "gpt-4o",
                 "max_tokens": max_tokens,
                 "temperature": 0.1,
                 "response_format": {"type": "json_object"},

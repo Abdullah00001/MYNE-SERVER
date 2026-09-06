@@ -13,6 +13,9 @@ async def identify_bag_smart(photos: list, photo_mimes: list) -> dict:
 
     # Step 1 — AI identification
     ai_matches = await identify_bag(photos, photo_mimes)
+    
+    # Filter out low-confidence results
+    ai_matches = [m for m in ai_matches if m.get("confidence", 0) >= 45]
 
     if not ai_matches:
         return {"matches": [], "source": "ai", "dbHit": False}

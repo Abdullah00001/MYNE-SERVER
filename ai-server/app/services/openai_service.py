@@ -110,13 +110,14 @@ Before outputting JSON, silently reason through these steps:
 4. Only then output the JSON.
 
 
-You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 4 matches ordered by confidence.
+You are an expert luxury handbag cataloguing assistant. Analyze the photo(s) and return ONLY valid JSON with exactly 3 matches ordered by confidence.
 
 IDENTIFICATION RULES:
 - Be decisive. Never use "maybe", "possibly". Always commit to the closest match.
-- detectedColors: list ALL visible colors using EXACT official brand names. Never generic.
+- PRIORITY: The most critical aspect is the exact color. If the color is slightly off, the valuation is worthless. Use the EXACT official brand color name with 100% precision. NEVER use generic colors.
   e.g. never ["blue", "orange"] — always ["Bleu Nuit", "Orange H"]
   For multicolor bags list ALL panels: ["Orange H", "Sanguine", "Bleu Hydra", "Gold", "Etain", "Bleu Lin"]
+- SPECIAL EDITIONS: Explicitly identify if the bag is a "Limited Edition", "Special Edition", "Runway", or a Collaboration (e.g., "Yayoi Kusama", "Supreme", "Murakami"). If it is a special edition, it must be explicitly noted in the model or subtitle.
 - detectedLeathers: exact official leather names (Togo, Clemence, Epsom, Caviar, Saffiano etc), more than one in case of several leather bags.
 - detectedConstruction:
   "Sellier" = stitching is VISIBLE on the OUTSIDE edge of the bag, sharp corners, rigid structured silhouette
@@ -252,17 +253,14 @@ Return ONLY this JSON shape, no explanation, no markdown:
 ]}
 
 IMPORTANT:
-- Always return exactly 4 matches
+- Always return exactly 3 matches
 RANK RULES:
 - Rank 1: Your highest confidence identification based on all visible evidence. Fully commit.
-- Rank 2: Ask "what if the size is wrong?" or "what if this is a closely related variant?" 
-  Must differ from rank 1 in at least: size OR colorway OR sub-model. Never identical brand+model+size.
-- Rank 3: Ask "what if this is a different model from the same brand?" 
-  Pick the most visually similar alternative model. All attributes must reflect THAT model independently.
-- Rank 4: Ask "what if we are completely wrong about the brand?" 
-  Pick the most plausible alternative brand. Attributes must be typical for that brand, not copied from rank 1.
-- HARD RULE: Read each rank's JSON back against rank 1 before finalizing. 
-  If colors + leather + hardware are identical, you have failed. Rewrite that rank.
+- Rank 2: Ask "what if the size or material is wrong?" 
+  Must be the EXACT same brand and model as Rank 1, but differ in size, colorway, or material.
+- Rank 3: Ask "what if this is a closely related variant?" 
+  Must be the EXACT same brand, but a visually similar alternative model or shape. NEVER pick a completely different style (e.g. no backpacks for totes).
+- HARD RULE: Never suggest a different brand. Never show irrelevant models. Read each rank's JSON back against rank 1 before finalizing.
 - Never leave imageSearchQuery empty'''
 
 
@@ -328,7 +326,7 @@ Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, 
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={
-                "model": "gpt-4o",
+                "model": "gpt-4o-mini",
                 "max_tokens": 10,
                 "temperature": 0,
                 "messages": [{"role": "user", "content": content}]
@@ -424,8 +422,8 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
         for model in ["gpt-4o-2024-11-20", "gpt-4o-mini"]:
             json_body = {
                 "model": model,
-                "max_tokens": 1800,
-                "temperature": 0.2,
+                "max_tokens": 1200,
+                "temperature": 0.3,
                 "messages": [
                     {
                         "role": "system",
@@ -533,14 +531,25 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
                 image_urls) if image_urls else ""
             match["thumbnailUrl"] = match["imageUrl"]
             if lens_data["prices"]:
-                raw = lens_data["prices"][0]
-                price = extract_price(raw)
-                if price:
-                    symbol = detect_currency_symbol(raw)
-                    eur = to_eur(price, symbol)
-                    match["estimatedValueEUR"] = int(eur)
-                    logger.info(
-                        f"[lens_price] raw={raw} | symbol={symbol} | price={price} | eur={eur}")
+                valid_eurs = []
+                for raw in lens_data["prices"]:
+                    if not raw: continue
+                    price = extract_price(raw)
+                    if price:
+                        symbol = detect_currency_symbol(raw)
+                        eur = to_eur(price, symbol)
+                        if eur > 100:  # basic sanity check
+                            valid_eurs.append(eur)
+                
+                if valid_eurs:
+                    valid_eurs.sort()
+                    # Trim extreme outliers if we have enough data points
+                    if len(valid_eurs) > 3:
+                        valid_eurs = valid_eurs[1:-1]
+                    # Calculate median
+                    median_eur = valid_eurs[len(valid_eurs) // 2]
+                    match["estimatedValueEUR"] = int(median_eur)
+                    logger.info(f"[lens_price] valid_eurs={valid_eurs} | median_eur={median_eur}")
         else:
             match["imageUrl"] = ""
             match["thumbnailUrl"] = ""
