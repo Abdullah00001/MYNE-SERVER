@@ -1,4 +1,57 @@
 services:
+  mongo:
+    image: mongo:7.0
+    container_name: myne_mongo
+    restart: unless-stopped
+    entrypoint:
+      - bash
+      - -lc
+      - |
+        if [ ! -f /data/configdb/mongo-keyfile ]; then
+          umask 077
+          head -c 756 /dev/urandom | base64 > /data/configdb/mongo-keyfile
+          chown mongodb:mongodb /data/configdb/mongo-keyfile
+        fi
+        exec docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /data/configdb/mongo-keyfile
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-myne_db}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-myne_root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-myne_root_password}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    expose:
+      - "27017"
+    ports:
+      - "127.0.0.1:27017:27017"
+    networks:
+      - myne_backend_network
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: myne_mongo_init
+    restart: "no"
+    command: |
+      bash -c "
+        until mongosh --host mongo:27017 --authenticationDatabase admin -u $$MONGO_ROOT_USER -p $$MONGO_ROOT_PASSWORD --eval 'db.runCommand({ ping: 1 })'; do
+          sleep 2
+        done
+        mongosh --host mongo:27017 --authenticationDatabase admin -u $$MONGO_ROOT_USER -p $$MONGO_ROOT_PASSWORD --eval '
+          try {
+            rs.status();
+          } catch (e) {
+            rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"mongo:27017\"}]});
+          }
+        '
+      "
+    environment:
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER:-myne_root}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-myne_root_password}
+    depends_on:
+      mongo:
+        condition: service_started
+    networks:
+      - myne_backend_network
   redis:
     image: redis:7.2-alpine
     container_name: myne_redis_container
@@ -54,3 +107,5 @@ networks:
 
 volumes:
   myne_redis_volume:
+  mongo_data:
+  mongo_config:
