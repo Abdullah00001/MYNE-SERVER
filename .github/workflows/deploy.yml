@@ -19,17 +19,22 @@ jobs:
         run: |
           echo "${{ secrets.ENV_AI }}" > ai-server/.env
 
+      - name: Clean Secrets
+        run: |
+          echo "VPS_USER=$(echo '${{ secrets.VPS_USERNAME }}' | tr -d '\n\r')" >> $GITHUB_ENV
+          echo "VPS_HOST=$(echo '${{ secrets.VPS_HOST }}' | tr -d '\n\r')" >> $GITHUB_ENV
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
 
       - name: Copy files to VPS via rsync
         run: |
-          rsync -avz --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude '.venv' ./ ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USERNAME }}/MYNE-SERVER/
+          rsync -avz --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude '.venv' ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:/home/${{ env.VPS_USER }}/MYNE-SERVER/
 
       - name: Execute deployment commands
         run: |
-          ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} "cd /home/${{ secrets.VPS_USERNAME }}/MYNE-SERVER && docker compose down && docker compose up -d --build"
+          ssh ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "cd /home/${{ env.VPS_USER }}/MYNE-SERVER && docker compose down && docker compose up -d --build"
