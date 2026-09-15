@@ -1,7 +1,7 @@
 import re
 import httpx
 import asyncio
-from app.config import SERP_API_KEY, OPENAI_API_KEY
+from app.config import SERP_API_KEY, OPENAI_API_KEY, SERPER_API_KEY
 from app.services.brand_config import get_official_site, get_brand_config
 
 
@@ -681,31 +681,49 @@ def is_clean_url(url: str) -> bool:
 
 
 async def fetch_bag_image(query: str) -> dict:
+    # 1. Try Serper API (google.serper.dev/images) - fast, reliable, active credits
+    if SERPER_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                res = await client.post(
+                    "https://google.serper.dev/images",
+                    headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                    json={"q": query, "num": 10}
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    for img in data.get("images", []):
+                        imageUrl = img.get("imageUrl", "")
+                        thumbnailUrl = img.get("thumbnailUrl", "")
+                        if is_clean_url(imageUrl):
+                            clean_thumb = thumbnailUrl if is_clean_url(thumbnailUrl) else imageUrl
+                            print(f"[fetch_bag_image] Found image via Serper: {imageUrl[:60]}")
+                            return {"thumbnailUrl": clean_thumb, "imageUrl": imageUrl}
+        except Exception as e:
+            print(f"[fetch_bag_image] Serper attempt failed: {e}")
+
+    # 2. Fallback search via SerpAPI
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             res = await client.get(
                 "https://serpapi.com/search",
                 params={
                     "engine": "google_images",
-                    "q": f"{query} {LUXURY_SITES_PRIMARY}",
+                    "q": query,
                     "num": 5,
                     "tbs": "itp:photo",
                     "api_key": SERP_API_KEY,
                 }
             )
-            res.raise_for_status()
-            data = res.json()
-
-        for result in data.get("images_results", []):
-            original = result.get("original", "")
-            thumbnail = result.get("thumbnail", "")
-            if is_clean_url(original):
-                clean_thumb = thumbnail if is_clean_url(
-                    thumbnail) else original
-                return {"thumbnailUrl": clean_thumb, "imageUrl": original}
-
-        return {"thumbnailUrl": "", "imageUrl": ""}  # no fallback
-
+            if res.status_code == 200:
+                data = res.json()
+                for result in data.get("images_results", []):
+                    original = result.get("original", "")
+                    thumbnail = result.get("thumbnail", "")
+                    if is_clean_url(original):
+                        clean_thumb = thumbnail if is_clean_url(thumbnail) else original
+                        return {"thumbnailUrl": clean_thumb, "imageUrl": original}
     except Exception as e:
-        print(f"[fetch_bag_image] failed: {e}")
-        return {"thumbnailUrl": "", "imageUrl": ""}
+        print(f"[fetch_bag_image] SerpAPI attempt failed: {e}")
+
+    return {"thumbnailUrl": "", "imageUrl": ""}

@@ -8,17 +8,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create Backend .env
-        run: |
-          echo "${{ secrets.ENV_BACKEND }}" > backend-server/.env
-
-      - name: Create AI .env
-        run: |
-          echo "${{ secrets.ENV_AI }}" > ai-server/.env
-
       - name: Clean Secrets
         run: |
           echo "VPS_USER=$(echo '${{ secrets.VPS_USERNAME }}' | tr -d '\n\r')" >> $GITHUB_ENV
@@ -31,10 +20,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Copy files to VPS via rsync
+      - name: Pull Latest Code and Deploy
         run: |
-          rsync -avz --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude '.venv' ./ ${{ env.VPS_USER }}@${{ env.VPS_HOST }}:/home/${{ env.VPS_USER }}/MYNE-SERVER/
-
-      - name: Execute deployment commands
-        run: |
-          ssh ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "cd /home/${{ env.VPS_USER }}/MYNE-SERVER && docker compose down && docker compose up -d --build"
+          ssh ${{ env.VPS_USER }}@${{ env.VPS_HOST }} "
+            cd /home/${{ env.VPS_USER }}/MYNE-SERVER && \
+            git fetch origin main && \
+            git reset --hard origin/main && \
+            echo '${{ secrets.ENV_BACKEND }}' > backend-server/.env && \
+            echo '${{ secrets.ENV_AI }}' > ai-server/.env && \
+            docker compose down && \
+            docker compose up -d --build
+          "
