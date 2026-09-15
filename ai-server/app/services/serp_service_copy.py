@@ -151,27 +151,32 @@ def extract_condition(html_text: str) -> str:
 
 
 async def scrape_condition(url: str) -> str:
-    try:
-        async with httpx.AsyncClient(timeout=6, follow_redirects=True) as client:
-            res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-            return extract_condition(res.text)
-    except:
-        return "On website"
+    return "On website"
 
 
 def extract_price(text) -> float | None:
     if not text:
         return None
     if isinstance(text, (int, float)):
-        return float(text)
+        return float(text) if float(text) > 100 else None
+    text_str = str(text)
     match = re.search(
-        r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', str(text))
-    if not match:
-        return None
-    try:
-        return float(match.group(1).replace(",", ""))
-    except:
-        return None
+        r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text_str)
+    if match:
+        try:
+            return float(match.group(1).replace(",", ""))
+        except:
+            pass
+    # Fallback to pure numeric extraction
+    match_num = re.search(r'\b([\d]{1,3}(?:,\d{3})+|\d{3,6})(?:\.\d{1,2})?\b', text_str)
+    if match_num:
+        try:
+            val = float(match_num.group(1).replace(",", ""))
+            if val >= 200:
+                return val
+        except:
+            pass
+    return None
 
 
 async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> list:
@@ -190,12 +195,9 @@ Below are search results with titles, URLs, and prices.
 Return ONLY the numbers of listings that are the EXACT same bag and could be used for pricing reference.
 
 Rules:
-- EXACT match = same brand, model, material, color, size, and EDITION → include. (If the target is a Limited Edition or Collaboration, standard versions MUST be rejected).
+- EXACT match = same brand, model, material, color, size, and EDITION → include.
 - REJECT any listing that differs in size, material, color, model, or edition.
-- REJECT any generic category pages, search pages, or blog posts (e.g. URLs lacking a specific product ID, or titles like "Chanel Bags - Buy & Sell").
-- When in doubt, REJECT it. Do not include loose matches.
-
-The goal is to gather ONLY highly accurate comparables for valuation.
+- REJECT any generic category pages, search pages, or blog posts.
 
 Reply with only comma-separated numbers. If none match, reply "none".
 
@@ -203,12 +205,12 @@ Results:
 {items_text}"""
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             res = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}",
                          "Content-Type": "application/json"},
-                json={"model": "gpt-4o",
+                json={"model": "gpt-4o-mini",
                       "messages": [{"role": "user", "content": prompt}],
                       "max_tokens": 100}
             )
@@ -216,7 +218,6 @@ Results:
             print(f"[ai_filter] kept: {result}")
 
             if result.lower() == "none":
-                print("[ai_filter] none matched — passing as silent reference only")
                 return [], priced_sources
 
             indices = [int(x.strip())
@@ -230,7 +231,7 @@ Results:
         return priced_sources, []
 
 # ─────────────────────────────────────────
-# STEP 2 — Google Lens + Serper Fallback
+# STEP 2 — Google Lens + SerpAPI Shopping Fallback
 # ─────────────────────────────────────────
 
 
@@ -238,7 +239,7 @@ async def get_lens_prices(image_url: str) -> list[dict]:
     lens_url = image_url
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
                 "https://serpapi.com/search",
                 params={
@@ -271,12 +272,12 @@ async def get_lens_prices(image_url: str) -> list[dict]:
         link = m.get("link", "")
         if not price_raw or not link:
             continue
-        domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+        domain = m.get("source") or (re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link).group(1) if re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link) else "unknown")
         priced_sources.append({
             "title": m.get("title", ""),
             "price_raw": price_raw,
             "url": link,
-            "source": domain.group(1) if domain else "unknown"
+            "source": str(domain)
         })
 
     logger.info(
@@ -291,7 +292,7 @@ async def search_priority_sites(query: str) -> list[dict]:
         return []
     site_filter = " OR ".join(f"site:{s}" for s in PRIORITY_SITES)
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             res = await client.get(
                 "https://serpapi.com/search",
                 params={
@@ -316,7 +317,7 @@ async def search_priority_sites(query: str) -> list[dict]:
                         "url": link,
                         "source": domain_str,
                         "country": get_country(domain_str),
-                        "condition_raw": ""
+                        "condition_raw": "On website"
                     })
             logger.info(f"[priority_sites] Found {len(results)} results")
             return results
@@ -325,25 +326,29 @@ async def search_priority_sites(query: str) -> list[dict]:
         return []
 
 
-async def fetch_serper_fallback_sources(query: str) -> list[dict]:
-    """Fallback search using Serper API Shopping endpoint when SerpAPI fails or returns few results."""
-    if not query or not SERPER_API_KEY:
+async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
+    """Fallback search using SerpAPI Google Shopping endpoint when Lens returns few results."""
+    if not query or not SERP_API_KEY:
         return []
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            res = await client.post(
-                "https://google.serper.dev/shopping",
-                headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-                json={"q": query, "num": 20}
+        async with httpx.AsyncClient(timeout=10) as client:
+            res = await client.get(
+                "https://serpapi.com/search",
+                params={
+                    "engine": "google_shopping",
+                    "q": query,
+                    "api_key": SERP_API_KEY,
+                    "num": 20
+                }
             )
             if res.status_code != 200:
                 return []
             data = res.json()
             results = []
-            for item in data.get("shopping", []):
-                raw_p = item.get("price", "")
-                price = extract_price(raw_p)
-                link = item.get("link") or item.get("productLink", "")
+            for item in data.get("shopping_results", []):
+                raw_p = item.get("price") or item.get("extracted_price") or ""
+                price = extract_price(str(raw_p))
+                link = item.get("link") or item.get("product_link", "")
                 merchant = item.get("source", "").strip()
                 title = item.get("title", "")
                 if price and price > 200 and link:
@@ -356,10 +361,10 @@ async def fetch_serper_fallback_sources(query: str) -> list[dict]:
                         "country": get_country(domain),
                         "condition_raw": "On website"
                     })
-            logger.info(f"[serper_fallback] Found {len(results)} market sources from Serper")
+            logger.info(f"[serpapi_shopping] Found {len(results)} market sources from SerpAPI Shopping")
             return results
     except Exception as e:
-        logger.warning(f"[serper_fallback] Serper Shopping failed: {e}")
+        logger.warning(f"[serpapi_shopping] SerpAPI Shopping failed: {e}")
         return []
 
 # ─────────────────────────────────────────
@@ -376,64 +381,43 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     priority_task = search_priority_sites(reference)
     lens_sources, priority_sources = await asyncio.gather(lens_task, priority_task)
 
-    # Priority sources go first so AI filter and dedup favour them
     priced_sources = priority_sources + lens_sources
 
     if not reference and lens_sources:
         reference = lens_sources[0]["title"]
 
-    # If SerpAPI returned fewer than 5 sources, fetch from Serper API Shopping as reliable fallback
-    serper_sources = []
-    if len(priced_sources) < 5 and reference:
-        serper_sources = await fetch_serper_fallback_sources(reference)
-        priced_sources.extend(serper_sources)
+    # Fetch SerpAPI Shopping sources to ensure 5+ listings
+    shopping_sources = []
+    if reference:
+        shopping_sources = await fetch_serpapi_shopping_sources(reference)
+        priced_sources.extend(shopping_sources)
 
     print(
-        f"[pre-filter] {len(priced_sources)} priced sources ({len(priority_sources)} priority, {len(lens_sources)} lens, {len(serper_sources)} serper):")
-    for i, p in enumerate(priced_sources):
-        print(f"  {i}: {p['source']} | {p['title']} | {p['price_raw']}")
+        f"[pre-filter] {len(priced_sources)} priced sources ({len(priority_sources)} priority, {len(lens_sources)} lens, {len(shopping_sources)} shopping):")
 
-    matched_sources, reference_sources = await ai_filter_priced_sources(priced_sources, reference)
-
-    # If AI filter rejected everything or returned fewer than 3, keep serper_sources
-    if len(matched_sources) < 3 and serper_sources:
-        matched_sources = list(matched_sources) + [s for s in serper_sources if s not in matched_sources]
-
-    final_sources = matched_sources if matched_sources else priced_sources
-
-    # Scrape condition concurrently for all matched sources
-    condition_tasks = [scrape_condition(item["url"])
-                       for item in final_sources]
-    scraped_conditions = await asyncio.gather(*condition_tasks)
-
-    prices = []
-    for i, item in enumerate(final_sources):
+    valid_priced_items = []
+    for item in priced_sources:
         price = extract_price(item["price_raw"])
-        if not price or price < 200:
-            continue
-        symbol = detect_currency_symbol(item["price_raw"])
-        eur = to_eur(price, symbol)
+        if price and price >= 200:
+            symbol = detect_currency_symbol(item["price_raw"])
+            eur = to_eur(price, symbol)
+            valid_priced_items.append({
+                "eur": eur,
+                "original": price,
+                "currency": symbol,
+                "source": item["source"],
+                "url": item["url"],
+                "title": item["title"],
+                "country": item.get("country", "Global"),
+                "condition": "On website"
+            })
 
-        condition = item.get("condition_raw") or scraped_conditions[i]
-
-        prices.append({
-            "eur": eur,
-            "original": price,
-            "currency": symbol,
-            "source": item["source"],
-            "url": item["url"],
-            "title": item["title"],
-            "country": item.get("country", "Global"),
-            "condition": condition
-        })
-        print(f"[price] {item['source']} → {symbol}{price} = €{eur}")
-
-    # deduplicate by source + title snippet
+    # Deduplicate by unique listing URL
     seen = {}
-    for p in prices:
-        key = f"{p['source']}_{p['title'][:20]}".lower()
-        if key not in seen:
-            seen[key] = p
+    for p in valid_priced_items:
+        url_key = p["url"].split("?")[0].rstrip("/").lower()
+        if url_key not in seen:
+            seen[url_key] = p
     prices = list(seen.values())
 
     # compute most common price cluster
@@ -472,5 +456,5 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
         "data_points": total,
         "valuation_status": status,
         "sources": sorted(prices, key=lambda x: x["eur"]),
-        "reference_sources": reference_sources
+        "reference_sources": []
     }

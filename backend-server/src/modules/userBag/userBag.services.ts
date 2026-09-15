@@ -204,17 +204,19 @@ export class UserBagService {
       yearsOfBag,
     };
     console.log(bagColor);
-    payloadWithImage.imageSearchQuery = this.systemUtils.buildImageSearchQuery({
-      brand: brand?.brandName as string,
-      model: model?.modelName as string,
-      bagColor,
-      condition,
-      hardwareColor,
-      material,
-      size,
-      specialVariant,
-      variant,
-    });
+    if (!imageSearchQuery) {
+      payloadWithImage.imageSearchQuery = this.systemUtils.buildImageSearchQuery({
+        brand: brand?.brandName as string,
+        model: model?.modelName as string,
+        bagColor,
+        condition,
+        hardwareColor,
+        material,
+        size,
+        specialVariant,
+        variant,
+      });
+    }
     console.log(payloadWithImage);
     try {
       const response = await UserCollection.findByIdAndUpdate(
