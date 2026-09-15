@@ -189,13 +189,53 @@ export class UserBagService {
     if (!brand) throw new Error('Brand Not Found');
     const model = await ModelModel.findOne({ _id: modelId });
     if (!model) throw new Error('Model Not Found');
+    let activeModelId = modelId;
+    let activeModelName = model.modelName;
+
+    if (size) {
+      const sizeKeywords = [
+        'Mini',
+        'Small',
+        'Medium',
+        'Large',
+        'Micro',
+        'Nano',
+        'Maxi',
+        'BB',
+        'PM',
+        'MM',
+        'GM',
+      ];
+      const currentModelHasSize = sizeKeywords.some((k) =>
+        activeModelName.toLowerCase().includes(k.toLowerCase())
+      );
+      if (currentModelHasSize) {
+        let targetModelName = activeModelName;
+        for (const k of sizeKeywords) {
+          const reg = new RegExp(`\\b${k}\\b`, 'gi');
+          if (reg.test(targetModelName)) {
+            targetModelName = targetModelName.replace(reg, size);
+            break;
+          }
+        }
+        const matchingModel = await ModelModel.findOne({
+          brandId: brand._id,
+          modelName: { $regex: new RegExp(`^${targetModelName}$`, 'i') },
+        });
+        if (matchingModel) {
+          activeModelId = matchingModel._id as unknown as Types.ObjectId;
+          activeModelName = matchingModel.modelName;
+        }
+      }
+    }
+
     const payloadWithImage = {
       bagColor,
       brandId,
       condition,
       hardwareColor,
       material,
-      modelId,
+      modelId: activeModelId,
       size,
       specialVariant,
       variant,
@@ -203,20 +243,17 @@ export class UserBagService {
       imageSearchQuery,
       yearsOfBag,
     };
-    console.log(bagColor);
-    if (!imageSearchQuery) {
-      payloadWithImage.imageSearchQuery = this.systemUtils.buildImageSearchQuery({
-        brand: brand?.brandName as string,
-        model: model?.modelName as string,
-        bagColor,
-        condition,
-        hardwareColor,
-        material,
-        size,
-        specialVariant,
-        variant,
-      });
-    }
+    payloadWithImage.imageSearchQuery = this.systemUtils.buildImageSearchQuery({
+      brand: brand?.brandName as string,
+      model: activeModelName,
+      bagColor,
+      condition,
+      hardwareColor,
+      material,
+      size,
+      specialVariant,
+      variant,
+    });
     console.log(payloadWithImage);
     try {
       const response = await UserCollection.findByIdAndUpdate(
@@ -496,11 +533,20 @@ export class UserBagService {
 
         /* ---------------------------- priceStatus build --------------------------- */
 
+        const currentMinValue = aiData?.price_range?.min ?? null;
+        const currentMaxValue = aiData?.price_range?.max ?? null;
+        const currentValue =
+          aiData?.current_value ??
+          (currentMinValue != null && currentMaxValue != null
+            ? (currentMinValue + currentMaxValue) / 2
+            : (currentMinValue ?? currentMaxValue ?? null));
+
         aiFields.priceStatus = {
           trend: aiData?.trend ?? null,
           changePercentage: aiData?.change_percentage ?? null,
-          currentMinValue: aiData?.price_range?.min ?? null,
-          currentMaxValue: aiData?.price_range?.max ?? null,
+          currentValue,
+          currentMinValue,
+          currentMaxValue,
           currency,
           fetchedAt: new Date().toISOString(),
         };
@@ -862,7 +908,9 @@ export class UserBagService {
         // ─── Add median per bag so we can sort and sum on it ──────────────────
         {
           $addFields: {
-            bagMedianValue: medianExpr,
+            bagMedianValue: {
+              $ifNull: ['$priceStatus.currentValue', medianExpr],
+            },
           },
         },
 
@@ -1510,11 +1558,20 @@ export class UserBagService {
           (s: { type: string; sites: string[] }) => s.sites
         ) ?? [];
 
+      const currentMinValue = aiResponsePayload?.price_range?.min ?? null;
+      const currentMaxValue = aiResponsePayload?.price_range?.max ?? null;
+      const currentValue =
+        aiResponsePayload?.current_value ??
+        (currentMinValue != null && currentMaxValue != null
+          ? (currentMinValue + currentMaxValue) / 2
+          : (currentMinValue ?? currentMaxValue ?? null));
+
       const priceStatus = {
         trend: aiResponsePayload?.trend ?? null,
         changePercentage: aiResponsePayload?.change_percentage ?? null,
-        currentMinValue: aiResponsePayload?.price_range?.min ?? null,
-        currentMaxValue: aiResponsePayload?.price_range?.max ?? null,
+        currentValue,
+        currentMinValue,
+        currentMaxValue,
         currency: aiResponsePayload?.currency ?? null,
         fetchedAt: new Date().toISOString(),
       };
@@ -1535,12 +1592,13 @@ export class UserBagService {
         historicalValue: slicedHistoricalValue,
         historicalValuePeriods: availablePeriods,
         aiSuggestedPrice:
-          Math.round(
+          priceStatus.currentValue ??
+          (Math.round(
             (((priceStatus.currentMinValue ?? 0) +
               (priceStatus.currentMaxValue ?? 0)) /
               2) *
               100
-          ) / 100,
+          ) / 100),
         priceStatus,
         source: allSites,
         marketSources,

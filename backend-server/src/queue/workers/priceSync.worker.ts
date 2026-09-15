@@ -49,9 +49,10 @@ export class PriceSyncWorker extends BaseWorker {
       const currentMinValue = aiData?.price_range?.min ?? null;
       const currentMaxValue = aiData?.price_range?.max ?? null;
       const currentValue =
-        currentMinValue != null && currentMaxValue != null
+        aiData?.current_value ??
+        (currentMinValue != null && currentMaxValue != null
           ? (currentMinValue + currentMaxValue) / 2
-          : (currentMinValue ?? currentMaxValue ?? 0);
+          : (currentMinValue ?? currentMaxValue ?? 0));
 
       const updateFields: {
         priceStatus?: TAdminBagPriceStatus;
