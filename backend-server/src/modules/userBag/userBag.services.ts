@@ -189,7 +189,7 @@ export class UserBagService {
     if (!brand) throw new Error('Brand Not Found');
     const model = await ModelModel.findOne({ _id: modelId });
     if (!model) throw new Error('Model Not Found');
-    let activeModelId = modelId;
+    let activeModelId: any = modelId;
     let activeModelName = model.modelName;
 
     if (size) {
@@ -223,7 +223,7 @@ export class UserBagService {
           modelName: { $regex: new RegExp(`^${targetModelName}$`, 'i') },
         });
         if (matchingModel) {
-          activeModelId = matchingModel._id as unknown as Types.ObjectId;
+          activeModelId = matchingModel._id;
           activeModelName = matchingModel.modelName;
         }
       }
