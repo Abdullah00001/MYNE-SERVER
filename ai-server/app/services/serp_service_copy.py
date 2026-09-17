@@ -300,10 +300,38 @@ async def get_lens_prices(image_url: str) -> list[dict]:
     return priced_sources
 
 
+def sanitize_search_query(query: str) -> str:
+    if not query:
+        return ""
+
+    noise_words = {
+        "standard", "excellent", "very good", "good", "fair", "poor", "new",
+        "lather", "leather", "condition", "hardware", "none", "bag", "used",
+        "pre-owned", "preowned", "authentic", "original", "luxury"
+    }
+
+    words = query.split()
+    cleaned_words = []
+    seen = set()
+
+    for w in words:
+        w_clean = re.sub(r'[^\w\s]', '', w)
+        w_lower = w_clean.lower()
+        if not w_lower or w_lower in noise_words or w_lower in seen:
+            continue
+        seen.add(w_lower)
+        cleaned_words.append(w_clean)
+
+    # Keep top 6 essential words (e.g. Gucci Ophidia Small Shoulder GG Supreme)
+    short_query = " ".join(cleaned_words[:6])
+    return short_query if short_query else query
+
+
 async def search_priority_sites(query: str) -> list[dict]:
     """Search PRIORITY_SITES directly via Google using the bag query."""
     if not query:
         return []
+    clean_q = sanitize_search_query(query)
     site_filter = " OR ".join(f"site:{s}" for s in PRIORITY_SITES)
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -311,7 +339,7 @@ async def search_priority_sites(query: str) -> list[dict]:
                 "https://serpapi.com/search",
                 params={
                     "engine": "google",
-                    "q": f"({site_filter}) {query}",
+                    "q": f"({site_filter}) {clean_q}",
                     "api_key": SERP_API_KEY,
                     "num": 10,
                 }
@@ -341,45 +369,57 @@ async def search_priority_sites(query: str) -> list[dict]:
 
 
 async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
-    """Fallback search using SerpAPI Google Shopping endpoint when Lens returns few results."""
+    """Fallback search using SerpAPI Google Shopping endpoint with query sanitization & multi-tier fallback."""
     if not query or not SERP_API_KEY:
         return []
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            res = await client.get(
-                "https://serpapi.com/search",
-                params={
-                    "engine": "google_shopping",
-                    "q": query,
-                    "api_key": SERP_API_KEY,
-                    "num": 20
-                }
-            )
-            if res.status_code != 200:
-                return []
-            data = res.json()
-            results = []
-            for item in data.get("shopping_results", []):
-                raw_p = item.get("price") or item.get("extracted_price") or ""
-                price = extract_price(str(raw_p))
-                link = item.get("link") or item.get("product_link", "")
-                merchant = item.get("source", "").strip()
-                title = item.get("title", "")
-                if price and price > 200 and link:
-                    domain = merchant if merchant else "Reseller"
-                    results.append({
-                        "title": title,
-                        "price_raw": str(raw_p),
-                        "url": link,
-                        "source": domain,
-                        "country": get_country(domain),
-                        "condition_raw": "On website"
-                    })
-            logger.info(f"[serpapi_shopping] Found {len(results)} market sources from SerpAPI Shopping")
-            return results
-    except Exception as e:
-        logger.warning(f"[serpapi_shopping] SerpAPI Shopping failed: {e}")
-        return []
+
+    clean_q = sanitize_search_query(query)
+    queries_to_try = [clean_q]
+
+    words = clean_q.split()
+    if len(words) > 3:
+        queries_to_try.append(" ".join(words[:4]))
+
+    results = []
+    seen_urls = set()
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for q in queries_to_try:
+            try:
+                res = await client.get(
+                    "https://serpapi.com/search",
+                    params={
+                        "engine": "google_shopping",
+                        "q": q,
+                        "api_key": SERP_API_KEY,
+                        "num": 20
+                    }
+                )
+                if res.status_code == 200:
+                    for item in res.json().get("shopping_results", []):
+                        raw_p = item.get("price") or item.get("extracted_price") or ""
+                        price = extract_price(str(raw_p))
+                        link = item.get("link") or item.get("product_link", "")
+                        merchant = item.get("source", "").strip()
+                        title = item.get("title", "")
+                        if price and price >= 200 and link and link not in seen_urls:
+                            seen_urls.add(link)
+                            domain = merchant if merchant else "Reseller"
+                            results.append({
+                                "title": title,
+                                "price_raw": str(raw_p),
+                                "url": link,
+                                "source": domain,
+                                "country": get_country(domain),
+                                "condition_raw": "On website"
+                            })
+                if len(results) >= 5:
+                    break
+            except Exception as e:
+                logger.warning(f"[serpapi_shopping] Failed for query '{q}': {e}")
+
+    logger.info(f"[serpapi_shopping] Found {len(results)} market sources from SerpAPI Shopping")
+    return results
 
 # ─────────────────────────────────────────
 # STEP 3 — parse, clean, return
