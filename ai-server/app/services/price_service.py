@@ -467,7 +467,15 @@ async def get_full_valuation_from_image(
         for i, s in enumerate(sources):
             if i < len(filtered_prices) and filtered_prices[i] is not None:
                 clean_sources.append({**s, "eur": filtered_prices[i]})
-        sources = clean_sources
+        
+        # If strict outlier filter reduced listings below 4, relax bound to preserve valid listings
+        if len(clean_sources) < 4 and len(sources) >= 4:
+            clean_sources = [
+                s for s in sources 
+                if s.get("eur") and (0.25 * gpt_estimate <= s["eur"] <= 2.5 * gpt_estimate)
+            ]
+
+        sources = clean_sources if clean_sources else sources
 
         if sources:
             sorted_clean = sorted([s["eur"] for s in sources])

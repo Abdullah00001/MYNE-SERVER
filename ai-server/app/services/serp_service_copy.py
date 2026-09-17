@@ -12,9 +12,33 @@ PRIORITY_SITES = [
     "therealreal.com",
     "sothebys.com",
     "fashionphile.com",
-    "loveluxury.co.uk",   # ← add
-    "loveluxury.ae",      # ← add
+    "rebag.com",
+    "1stdibs.com",
+    "collector-square.com",
+    "loveluxury.co.uk",
+    "loveluxury.ae",
+    "saclab.com",
+    "stockx.com",
+    "komehyo.jp",
+    "yoogiscloset.com",
+    "portero.com",
+    "designerexchange.co.uk",
 ]
+
+PRIORITY_KEYWORDS = [
+    "madisonavenuecouture", "vestiaire", "therealreal", "sothebys",
+    "fashionphile", "loveluxury", "1stdibs", "rebag", "collector-square",
+    "collectorsquare", "saclab", "stockx", "komehyo", "yoogi", "portero",
+    "designerexchange", "videdressing", "hardlyeverwornit", "christies",
+    "catawiki", "jamesedition"
+]
+
+
+def is_priority_source(url: str = "", source: str = "") -> bool:
+    src_l = (source or "").lower()
+    url_l = (url or "").lower()
+    return any(k in src_l or k in url_l for k in PRIORITY_KEYWORDS)
+
  
 # ─────────────────────────────────────────
 # Domain SITES
@@ -351,44 +375,59 @@ def sanitize_search_query(query: str) -> str:
 
 
 async def search_priority_sites(query: str) -> list[dict]:
-    """Search PRIORITY_SITES directly via Google using the bag query."""
+    """Search PRIORITY_SITES directly via Google using multi-tier bag queries."""
     if not query:
         return []
     clean_q = sanitize_search_query(query)
+    words = clean_q.split()
+    queries_to_try = [clean_q]
+    if len(words) > 3:
+        queries_to_try.append(" ".join(words[:4]))
+    if len(words) > 2:
+        queries_to_try.append(" ".join(words[:3]))
+
     site_filter = " OR ".join(f"site:{s}" for s in PRIORITY_SITES)
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            res = await client.get(
-                "https://serpapi.com/search",
-                params={
-                    "engine": "google",
-                    "q": f"({site_filter}) {clean_q}",
-                    "api_key": SERP_API_KEY,
-                    "num": 10,
-                }
-            )
-            res.raise_for_status()
-            results = []
-            for r in res.json().get("organic_results", []):
-                link = r.get("link", "")
-                snippet = r.get("snippet", "") + " " + r.get("title", "")
-                price = extract_price(snippet)
-                domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
-                domain_str = domain.group(1) if domain else "unknown"
-                if price and link:
-                    results.append({
-                        "title": r.get("title", ""),
-                        "price_raw": snippet,
-                        "url": link,
-                        "source": domain_str,
-                        "country": get_country(domain_str),
-                        "condition_raw": "On website"
-                    })
-            logger.info(f"[priority_sites] Found {len(results)} results")
-            return results
-    except Exception as e:
-        logger.warning(f"[priority_sites] Failed: {e}")
-        return []
+    results = []
+    seen_links = set()
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for q in queries_to_try:
+            try:
+                res = await client.get(
+                    "https://serpapi.com/search",
+                    params={
+                        "engine": "google",
+                        "q": f"({site_filter}) {q}",
+                        "api_key": SERP_API_KEY,
+                        "num": 15,
+                    }
+                )
+                if res.status_code == 200:
+                    for r in res.json().get("organic_results", []):
+                        link = r.get("link", "")
+                        if not link or link in seen_links or is_blocked_source(link, r.get("title", "")):
+                            continue
+                        snippet = r.get("snippet", "") + " " + r.get("title", "")
+                        price = extract_price(snippet)
+                        domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+                        domain_str = domain.group(1) if domain else "unknown"
+                        if price and price >= 200:
+                            seen_links.add(link)
+                            results.append({
+                                "title": r.get("title", ""),
+                                "price_raw": snippet,
+                                "url": link,
+                                "source": domain_str,
+                                "country": get_country(domain_str),
+                                "condition_raw": "On website"
+                            })
+                if len(results) >= 6:
+                    break
+            except Exception as e:
+                logger.warning(f"[priority_sites] Failed for '{q}': {e}")
+
+    logger.info(f"[priority_sites] Found {len(results)} results")
+    return results
 
 
 async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
@@ -400,8 +439,10 @@ async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
     queries_to_try = [clean_q]
 
     words = clean_q.split()
-    if len(words) > 3:
+    if len(words) > 4:
         queries_to_try.append(" ".join(words[:4]))
+    if len(words) > 2:
+        queries_to_try.append(" ".join(words[:3]))
 
     results = []
     seen_urls = set()
@@ -415,7 +456,7 @@ async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
                         "engine": "google_shopping",
                         "q": q,
                         "api_key": SERP_API_KEY,
-                        "num": 20
+                        "num": 25
                     }
                 )
                 if res.status_code == 200:
@@ -436,12 +477,65 @@ async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
                                 "country": get_country(domain),
                                 "condition_raw": "On website"
                             })
-                if len(results) >= 5:
+                if len(results) >= 8:
                     break
             except Exception as e:
                 logger.warning(f"[serpapi_shopping] Failed for query '{q}': {e}")
 
     logger.info(f"[serpapi_shopping] Found {len(results)} market sources from SerpAPI Shopping")
+    return results
+
+async def fetch_serper_shopping_sources(query: str) -> list[dict]:
+    """Fetch additional luxury reseller listings using Serper.dev Google Shopping API."""
+    if not query or not SERPER_API_KEY:
+        return []
+
+    clean_q = sanitize_search_query(query)
+    words = clean_q.split()
+    queries_to_try = [clean_q]
+    if len(words) > 4:
+        queries_to_try.append(" ".join(words[:4]))
+    if len(words) > 2:
+        queries_to_try.append(" ".join(words[:3]))
+
+    results = []
+    seen_urls = set()
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for q in queries_to_try:
+            try:
+                res = await client.post(
+                    "https://google.serper.dev/shopping",
+                    headers={
+                        "X-API-KEY": SERPER_API_KEY,
+                        "Content-Type": "application/json"
+                    },
+                    json={"q": q, "num": 25}
+                )
+                if res.status_code == 200:
+                    for item in res.json().get("shopping", []):
+                        raw_p = item.get("price") or ""
+                        price = extract_price(str(raw_p))
+                        link = item.get("link") or item.get("productLink", "")
+                        merchant = item.get("source", "").strip()
+                        title = item.get("title", "")
+                        if price and price >= 200 and link and link not in seen_urls and not is_blocked_source(link, merchant):
+                            seen_urls.add(link)
+                            domain = merchant if merchant else "Reseller"
+                            results.append({
+                                "title": title,
+                                "price_raw": str(raw_p),
+                                "url": link,
+                                "source": domain,
+                                "country": get_country(domain),
+                                "condition_raw": "On website"
+                            })
+                if len(results) >= 8:
+                    break
+            except Exception as e:
+                logger.warning(f"[serper_shopping] Failed for query '{q}': {e}")
+
+    logger.info(f"[serper_shopping] Found {len(results)} market sources from Serper Shopping")
     return results
 
 # ─────────────────────────────────────────
@@ -452,22 +546,23 @@ async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
 async def fetch_prices_from_image(image_url: str, image_search_query: str = "") -> dict:
     await refresh_rates()
 
-    # Run Lens + priority site search concurrently
     reference = image_search_query
-    lens_task = get_lens_prices(image_url)
-    priority_task = search_priority_sites(reference)
-    lens_sources, priority_sources = await asyncio.gather(lens_task, priority_task)
-
-    raw_priced_sources = priority_sources + lens_sources
+    lens_sources = await get_lens_prices(image_url)
 
     if not reference and lens_sources:
         reference = lens_sources[0]["title"]
 
-    # Fetch SerpAPI Shopping sources to ensure 5+ listings
-    shopping_sources = []
+    raw_priced_sources = list(lens_sources)
+
     if reference:
-        shopping_sources = await fetch_serpapi_shopping_sources(reference)
-        raw_priced_sources.extend(shopping_sources)
+        priority_task = search_priority_sites(reference)
+        serpapi_task = fetch_serpapi_shopping_sources(reference)
+        serper_task = fetch_serper_shopping_sources(reference)
+
+        p_sources, s_sources, sp_sources = await asyncio.gather(
+            priority_task, serpapi_task, serper_task
+        )
+        raw_priced_sources.extend(p_sources + s_sources + sp_sources)
 
     # 1. Pre-filter out non-bag accessories and blocked domains (e.g. eBay)
     filtered_by_keyword = [
@@ -490,7 +585,16 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     # 3. AI filter candidate listings for relevance to target bag
     if reference and filtered_by_keyword:
         ai_filtered_sources, _ = await ai_filter_priced_sources(filtered_by_keyword, reference)
-        priced_sources = ai_filtered_sources if ai_filtered_sources else filtered_by_keyword
+        if len(ai_filtered_sources) >= 4:
+            priced_sources = ai_filtered_sources
+        else:
+            # Preserve additional non-accessory brand matches so we maintain 4-5+ listings minimum
+            seen_urls = set(x.get("url") for x in ai_filtered_sources)
+            priced_sources = list(ai_filtered_sources)
+            for item in filtered_by_keyword:
+                if item.get("url") not in seen_urls:
+                    seen_urls.add(item.get("url"))
+                    priced_sources.append(item)
     else:
         priced_sources = filtered_by_keyword
 
@@ -522,9 +626,26 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
             seen[url_key] = p
     prices = list(seen.values())
 
+    # Separate priority reseller listings from general listings
+    priority_items = []
+    secondary_items = []
+
+    for item in prices:
+        if is_priority_source(url=item.get("url", ""), source=item.get("source", "")):
+            priority_items.append(item)
+        else:
+            secondary_items.append(item)
+
+    # Sort each group by price
+    priority_items.sort(key=lambda x: x["eur"])
+    secondary_items.sort(key=lambda x: x["eur"])
+
+    # Combine PRIORITY SITES FIRST, then secondary reseller sites
+    ordered_sources = priority_items + secondary_items
+
     # compute most common price cluster
-    if prices:
-        sorted_prices = sorted(prices, key=lambda x: x["eur"])
+    if ordered_sources:
+        sorted_prices = sorted(ordered_sources, key=lambda x: x["eur"])
 
         # group prices within 15% of each other
         clusters = []
@@ -545,7 +666,7 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     else:
         resale_price = None
 
-    total = len(prices)
+    total = len(ordered_sources)
     if total < 3:
         status = "Not enough data"
     elif total < 6:
@@ -557,6 +678,6 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
         "resale_price": resale_price,
         "data_points": total,
         "valuation_status": status,
-        "sources": sorted(prices, key=lambda x: x["eur"]),
+        "sources": ordered_sources,
         "reference_sources": []
     }
