@@ -179,6 +179,29 @@ def extract_price(text) -> float | None:
     return None
 
 
+BLOCKED_DOMAINS = [
+    "instagram.com", "lookaside.instagram.com", "pinterest.com",
+    "tiktok.com", "facebook.com", "twitter.com", "reddit.com",
+    "serpapi.com",
+    "wikimedia.org", "wikipedia.org",
+    "blogspot.com", "wordpress.com",
+    "aliexpress.com", "dhgate.com",
+    "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay",
+]
+
+
+def is_clean_url(url: str) -> bool:
+    return url and not any(blocked in url.lower() for blocked in BLOCKED_DOMAINS)
+
+
+def is_blocked_source(url: str = "", source: str = "") -> bool:
+    url_l = (url or "").lower()
+    src_l = (source or "").lower()
+    if "ebay" in url_l or "ebay" in src_l:
+        return True
+    return any(blocked in url_l for blocked in BLOCKED_DOMAINS)
+
+
 REJECT_KEYWORDS = [
     "strap", "shoulder strap", "charm", "bag charm", "wallet", "card holder",
     "cardholder", "keychain", "key holder", "pouch", "dust bag", "dustbag",
@@ -402,7 +425,7 @@ async def fetch_serpapi_shopping_sources(query: str) -> list[dict]:
                         link = item.get("link") or item.get("product_link", "")
                         merchant = item.get("source", "").strip()
                         title = item.get("title", "")
-                        if price and price >= 200 and link and link not in seen_urls:
+                        if price and price >= 200 and link and link not in seen_urls and not is_blocked_source(link, merchant):
                             seen_urls.add(link)
                             domain = merchant if merchant else "Reseller"
                             results.append({
@@ -446,10 +469,10 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
         shopping_sources = await fetch_serpapi_shopping_sources(reference)
         raw_priced_sources.extend(shopping_sources)
 
-    # 1. Pre-filter out non-bag accessories (straps, charms, pouches, dustbags, boxes, etc.)
+    # 1. Pre-filter out non-bag accessories and blocked domains (e.g. eBay)
     filtered_by_keyword = [
         item for item in raw_priced_sources
-        if not is_non_bag_accessory(item.get("title", ""))
+        if not is_non_bag_accessory(item.get("title", "")) and not is_blocked_source(item.get("url", ""), item.get("source", ""))
     ]
 
     # 2. Extract brand from reference (if available) and filter out completely different brands

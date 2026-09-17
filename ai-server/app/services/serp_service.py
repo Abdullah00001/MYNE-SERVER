@@ -448,35 +448,8 @@ async def fetch_reseller_prices(brand: str, model: str, size: str, leather: str,
 
 
 async def fetch_ebay_listings(brand: str, model: str, size: str, leather: str, color: str, condition: str, construction: str, special_variant: str, image_search_query: str = "") -> list[float]:
-    """
-    Fetch eBay active listings via Serper Google Shopping.
-    We label these separately from resellers because they include non-authenticated sellers.
-    """
-    base = image_search_query if image_search_query else f"{brand} {model} {size} {leather} {format_colors(color)}"
-    query = f"{base} site:ebay.com"
-    try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            res = await client.post(
-                "https://google.serper.dev/shopping",
-                headers=SERP_HEADERS,
-                json={"q": query, "num": 10}
-            )
-            res.raise_for_status()
-            data = res.json()
-
-        shopping_results = data.get("shopping", [])
-        shopping_results = await ai_filter_titles(shopping_results, image_search_query)
-
-        prices = parse_prices_from_results(
-            shopping_results, min_price=800)
-        prices = remove_outliers(prices)
-        print(
-            f"[debug] before dedup: {[(p['source'], p['eur']) for p in prices]}")
-        return deduplicate_by_domain(prices)   # ← add this
-
-    except Exception as e:
-        print(f"[fetch_ebay_listings] failed: {e}")
-        return []
+    """eBay is excluded per client requirements."""
+    return []
 
 
 # ─────────────────────────────────────────
