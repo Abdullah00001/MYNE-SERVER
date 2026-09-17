@@ -653,33 +653,74 @@ def is_clean_url(url: str) -> bool:
     return url and not any(blocked in url for blocked in BLOCKED_DOMAINS)
 
 
+def sanitize_image_query(query: str) -> str:
+    """Sanitize long verbose query to core 3-4 essential words for image search."""
+    if not query:
+        return ""
+    noise_words = {
+        "standard", "excellent", "very good", "good", "fair", "poor", "new",
+        "lather", "leather", "condition", "hardware", "none", "bag", "used",
+        "pre-owned", "preowned", "authentic", "original", "luxury", "stamp",
+        "retourne", "sellier", "gold", "palladium", "silver", "permabrass"
+    }
+    words = query.split()
+    cleaned = []
+    seen = set()
+    for w in words:
+        clean = re.sub(r'[^\w\s]', '', w)
+        clean_lower = clean.lower()
+        if not clean_lower or clean_lower in noise_words or clean_lower in seen:
+            continue
+        seen.add(clean_lower)
+        cleaned.append(clean)
+    return " ".join(cleaned[:4]) if cleaned else query
+
+
 async def fetch_bag_image(query: str) -> dict:
-    """Fetch bag image strictly using SerpAPI google_images engine."""
-    if not query or not SERP_API_KEY:
+    """Fetch clean bag image using Serper.dev Images API first, then SerpAPI fallback."""
+    if not query:
         return {"thumbnailUrl": "", "imageUrl": ""}
 
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            res = await client.get(
-                "https://serpapi.com/search",
-                params={
-                    "engine": "google_images",
-                    "q": query,
-                    "num": 10,
-                    "tbs": "itp:photo",
-                    "api_key": SERP_API_KEY,
-                }
-            )
-            if res.status_code == 200:
-                data = res.json()
-                for result in data.get("images_results", []):
-                    original = result.get("original", "")
-                    thumbnail = result.get("thumbnail", "")
-                    if is_clean_url(original) or is_clean_url(thumbnail):
-                        clean_thumb = thumbnail if thumbnail else original
-                        clean_img = original if original else thumbnail
-                        return {"thumbnailUrl": clean_thumb, "imageUrl": clean_img}
-    except Exception as e:
-        print(f"[fetch_bag_image] SerpAPI attempt failed: {e}")
+    clean_q = sanitize_image_query(query)
+
+    # 1. Try Serper.dev images API first (fast & clean)
+    if SERPER_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                res = await client.post(
+                    "https://google.serper.dev/images",
+                    headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
+                    json={"q": clean_q, "num": 10}
+                )
+                if res.status_code == 200:
+                    for img in res.json().get("images", []):
+                        thumb = img.get("thumbnailUrl") or img.get("imageUrl", "")
+                        full = img.get("imageUrl") or img.get("thumbnailUrl", "")
+                        if thumb and is_clean_url(thumb):
+                            return {"thumbnailUrl": thumb, "imageUrl": full}
+        except Exception as e:
+            print(f"[fetch_bag_image] Serper image search failed for '{clean_q}': {e}")
+
+    # 2. Fallback to SerpAPI google_images
+    if SERP_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                res = await client.get(
+                    "https://serpapi.com/search",
+                    params={
+                        "engine": "google_images",
+                        "q": clean_q,
+                        "num": 10,
+                        "api_key": SERP_API_KEY,
+                    }
+                )
+                if res.status_code == 200:
+                    for r in res.json().get("images_results", []):
+                        orig = r.get("original", "")
+                        thumb = r.get("thumbnail", "")
+                        if orig and is_clean_url(orig):
+                            return {"thumbnailUrl": thumb if thumb else orig, "imageUrl": orig}
+        except Exception as e:
+            print(f"[fetch_bag_image] SerpAPI image search failed for '{clean_q}': {e}")
 
     return {"thumbnailUrl": "", "imageUrl": ""}

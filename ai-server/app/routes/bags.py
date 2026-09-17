@@ -157,10 +157,15 @@ async def identify_upload_stream(
  
         # Step 3: enrich ranks 2/3/4 in parallel, stream each as it finishes
         async def enrich_and_stream(match):
-            query = match.get("imageSearchQuery") or \
-                f"{match.get('brand')} {match.get('model')}"
+            if match.get("imageUrl") and match.get("thumbnailUrl"):
+                return match
+            query = f"{match.get('brand')} {match.get('model')}"
             image_data = await fetch_bag_image(query)
-            return {**match, "imageUrl": image_data.get("imageUrl", ""), "thumbnailUrl": image_data.get("thumbnailUrl", "")}
+            return {
+                **match,
+                "imageUrl": image_data.get("imageUrl") or match.get("imageUrl", ""),
+                "thumbnailUrl": image_data.get("thumbnailUrl") or match.get("thumbnailUrl", "")
+            }
  
         tasks = [enrich_and_stream(m) for m in matches[1:]]
         for coro in asyncio.as_completed(tasks):
