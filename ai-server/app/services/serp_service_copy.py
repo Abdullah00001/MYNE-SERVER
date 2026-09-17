@@ -179,8 +179,26 @@ def extract_price(text) -> float | None:
     return None
 
 
-async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> list:
-    """Use AI to keep only sources matching the exact bag."""
+REJECT_KEYWORDS = [
+    "strap", "shoulder strap", "charm", "bag charm", "wallet", "card holder",
+    "cardholder", "keychain", "key holder", "pouch", "dust bag", "dustbag",
+    "box", "scarf", "twilly", "belt", "sunglasses", "shoe", "sneaker",
+    "pendant", "ring", "bracelet", "earring", "necklace", "case", "cover",
+    "airpods", "organizer", "insert", "shaper", "book", "catalog", "perfume",
+    "fragrance", "candle", "mini pouch", "clutch pouch", "chain strap", "handle"
+]
+
+
+def is_non_bag_accessory(title: str) -> bool:
+    title_lower = (title or "").lower()
+    for kw in REJECT_KEYWORDS:
+        if re.search(r'\b' + re.escape(kw) + r'\b', title_lower):
+            return True
+    return False
+
+
+async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> tuple[list, list]:
+    """Use AI to keep only sources matching the exact or similar bag model, rejecting accessories."""
     if not priced_sources:
         return [], []
 
@@ -188,21 +206,17 @@ async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> li
              p in enumerate(priced_sources)]
     items_text = "\n".join(items)
 
-    prompt = f"""You are a luxury bag expert.
-Target bag identified as: "{first_title}"
+    prompt = f"""You are a luxury bag expert evaluating market listings for the target bag: "{first_title}"
 
-Below are search results with titles, URLs, and prices.
-Return ONLY the numbers of listings that are the EXACT same bag and could be used for pricing reference.
+Below are search results with titles, URLs, and prices:
+{items_text}
 
-Rules:
-- EXACT match = same brand, model, material, color, size, and EDITION → include.
-- REJECT any listing that differs in size, material, color, model, or edition.
-- REJECT any generic category pages, search pages, or blog posts.
+Instructions:
+1. Return ONLY the numbers of listings that are ACTUAL HANDBAGS matching the brand and model family of "{first_title}".
+2. REJECT any listing that is an accessory, strap, charm, wallet, cardholder, pouch, dust bag, box, shoe, or unrelated item.
+3. REJECT any listing that is a completely different brand or unrelated bag model.
 
-Reply with only comma-separated numbers. If none match, reply "none".
-
-Results:
-{items_text}"""
+Reply with only comma-separated numbers (e.g. 0,2,4). If none match, reply "none"."""
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -215,7 +229,7 @@ Results:
                       "max_tokens": 100}
             )
             result = res.json()["choices"][0]["message"]["content"].strip()
-            print(f"[ai_filter] kept: {result}")
+            print(f"[ai_filter] target: '{first_title}' | kept: {result}")
 
             if result.lower() == "none":
                 return [], priced_sources
@@ -227,7 +241,7 @@ Results:
             return matched, []
 
     except Exception as e:
-        print(f"[ai_filter] failed: {e} — returning all")
+        print(f"[ai_filter] failed: {e} — returning pre-filtered list")
         return priced_sources, []
 
 # ─────────────────────────────────────────
@@ -381,7 +395,7 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     priority_task = search_priority_sites(reference)
     lens_sources, priority_sources = await asyncio.gather(lens_task, priority_task)
 
-    priced_sources = priority_sources + lens_sources
+    raw_priced_sources = priority_sources + lens_sources
 
     if not reference and lens_sources:
         reference = lens_sources[0]["title"]
@@ -390,10 +404,35 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     shopping_sources = []
     if reference:
         shopping_sources = await fetch_serpapi_shopping_sources(reference)
-        priced_sources.extend(shopping_sources)
+        raw_priced_sources.extend(shopping_sources)
+
+    # 1. Pre-filter out non-bag accessories (straps, charms, pouches, dustbags, boxes, etc.)
+    filtered_by_keyword = [
+        item for item in raw_priced_sources
+        if not is_non_bag_accessory(item.get("title", ""))
+    ]
+
+    # 2. Extract brand from reference (if available) and filter out completely different brands
+    brand_hint = reference.split()[0].lower() if reference else ""
+    known_brands = ["gucci", "chanel", "louis", "hermes", "prada", "loewe", "dior", "celine", "saint", "bottega", "balenciaga", "fendi", "burberry", "valentino", "givenchy", "miu"]
+    if brand_hint in known_brands:
+        filtered_by_brand = []
+        for item in filtered_by_keyword:
+            t_lower = item.get("title", "").lower()
+            if brand_hint in t_lower or any(b in t_lower for b in [brand_hint, "louis vuitton", "saint laurent", "bottega veneta"]):
+                filtered_by_brand.append(item)
+        if filtered_by_brand:
+            filtered_by_keyword = filtered_by_brand
+
+    # 3. AI filter candidate listings for relevance to target bag
+    if reference and filtered_by_keyword:
+        ai_filtered_sources, _ = await ai_filter_priced_sources(filtered_by_keyword, reference)
+        priced_sources = ai_filtered_sources if ai_filtered_sources else filtered_by_keyword
+    else:
+        priced_sources = filtered_by_keyword
 
     print(
-        f"[pre-filter] {len(priced_sources)} priced sources ({len(priority_sources)} priority, {len(lens_sources)} lens, {len(shopping_sources)} shopping):")
+        f"[fetch_prices_from_image] {len(raw_priced_sources)} raw → {len(filtered_by_keyword)} non-accessory → {len(priced_sources)} AI-matched")
 
     valid_priced_items = []
     for item in priced_sources:
@@ -424,7 +463,7 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     if prices:
         sorted_prices = sorted(prices, key=lambda x: x["eur"])
 
-        # group prices within 10% of each other
+        # group prices within 15% of each other
         clusters = []
         for p in sorted_prices:
             placed = False

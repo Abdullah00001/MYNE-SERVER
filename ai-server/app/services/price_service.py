@@ -334,10 +334,8 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
     sorted_p = sorted(prices)
     spread_ratio = sorted_p[-1] / sorted_p[0] if sorted_p[0] > 0 else 1
     if spread_ratio > 3:
-        print(
-            f"[outlier] High spread ({spread_ratio:.1f}x) — using GPT estimate only")
+        print(f"[outlier] High spread ({spread_ratio:.1f}x) — using GPT estimate filter")
         if gpt_estimate and gpt_estimate > 0:
-            # None = drop this price, keep index alignment
             return [p if 0.4 * gpt_estimate <= p <= 1.6 * gpt_estimate else None for p in prices]
         return prices
 
@@ -351,14 +349,12 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
         filtered = [p if lower <= p <= upper else None for p in prices]
     else:
         median = sorted_p[len(sorted_p) // 2]
-        filtered = [p if 0.6 * median <= p <=
-                    1.4 * median else None for p in prices]
+        filtered = [p if 0.6 * median <= p <= 1.4 * median else None for p in prices]
 
     # ── GPT cross-check ──────────────────────────────────────────
     if gpt_estimate and gpt_estimate > 0:
         filtered = [
-            p if (p is not None and 0.4 * gpt_estimate <=
-                  p <= 1.6 * gpt_estimate) else None
+            p if (p is not None and 0.4 * gpt_estimate <= p <= 1.6 * gpt_estimate) else None
             for p in filtered
         ]
 
@@ -366,7 +362,6 @@ def filter_outliers(prices: list[float], gpt_estimate: float = None) -> list[flo
     if dropped:
         print(f"[outlier] Dropped: {dropped}")
 
-    # Never return all-None — fall back to corrected prices
     valid = [p for p in filtered if p is not None]
     return filtered if valid else prices
 
@@ -377,32 +372,13 @@ async def get_full_valuation_from_image(
     image_search_query: str = "",
 ) -> dict:
 
-    # Step 1 — get prices from image
+    # Step 1 — get prices from image (pre-filtered for accessories & brand relevance)
     market = await fetch_prices_from_image(image_url, image_search_query)
 
     resale_price = market.get("resale_price") or 0
     sources = market.get("sources", [])
     reference_sources = market.get("reference_sources", [])
 
-    # ── Clean sources EARLY, before anything else sees them ──────
-    if sources:
-        raw_prices = [s["eur"] for s in sources]
-        clean_prices = filter_outliers(raw_prices)
-
-        # pair each source with its corrected price
-        sources = [
-            {**s, "eur": clean_prices[i]}   # overwrite with corrected price
-            for i, s in enumerate(sources)
-            if clean_prices[i] is not None   # None means dropped
-        ]
-
-        sorted_clean = sorted([s["eur"] for s in sources])
-        resale_price = sorted_clean[len(sorted_clean) // 2]
-
-        sorted_clean = sorted([s["eur"] for s in sources])
-        resale_price = sorted_clean[len(sorted_clean) // 2]
-
-    # Step 2 — GPT estimates final value from those prices
     title = image_search_query if image_search_query else (
         sources[0]["title"] if sources else "")
     brand_raw = title.split()[0] if title else ""
@@ -424,10 +400,9 @@ async def get_full_valuation_from_image(
         src_items = [
             f"- {s['title']}: €{s['eur']} ({s['source']})" for s in sources]
         price_context = f"""
-    Exact market prices found for this bag:
+    Search results for this bag:
     {chr(10).join(src_items)}
-    Median resale price: €{resale_price}
-    Use these as your PRIMARY anchor.
+    Use these as references only if they match "{title}".
     """
     elif reference_sources:
         ref_items = []
@@ -439,9 +414,8 @@ async def get_full_valuation_from_image(
 
         price_context = f"""
     No exact match found for "{title}".
-    Below are prices for visually similar bags (may be different size/model) — use as calibration reference only:
+    Below are prices for visually similar bags — use as calibration reference only:
     {chr(10).join(ref_items)}
-    Adjust your estimate based on the size and model difference between these and the target bag.
     Do NOT copy these prices directly.
     """
     else:
@@ -482,37 +456,39 @@ async def get_full_valuation_from_image(
 
     gpt_result = await call_gpt(prompt)
 
-    # override if GPT undershoots real market data
+    # ── Clean sources against GPT estimate ──────────────────────────────
+    gpt_estimate = gpt_result.get("current_value") or 0
+    if sources:
+        raw_prices = [s["eur"] for s in sources if s.get("eur") is not None]
+        filtered_prices = filter_outliers(raw_prices, gpt_estimate)
+
+        # Keep ONLY sources that passed outlier filter
+        clean_sources = []
+        for i, s in enumerate(sources):
+            if i < len(filtered_prices) and filtered_prices[i] is not None:
+                clean_sources.append({**s, "eur": filtered_prices[i]})
+        sources = clean_sources
+
+        if sources:
+            sorted_clean = sorted([s["eur"] for s in sources])
+            resale_price = sorted_clean[len(sorted_clean) // 2]
+            gpt_result["price_range"] = {
+                "min": min(sorted_clean),
+                "max": max(sorted_clean)
+            }
+        else:
+            gpt_result["price_range"] = {
+                "min": round(gpt_estimate * 0.8, 2) if gpt_estimate else 0,
+                "max": round(gpt_estimate * 1.2, 2) if gpt_estimate else 0
+            }
+
+    # override if GPT undershot real market data
     if is_investment and resale_price:
         if (gpt_result.get("current_value") or 0) < resale_price * 0.92:
             gpt_result["current_value"] = resale_price
             gpt_result["confidence"] = "medium"
             print(
                 f"[get_full_valuation_from_image] GPT undershot — overriding with: {resale_price}")
-
-# override price_range with actual values from sources
-    if sources:
-        # 1. EXTRACT: Pull the raw prices directly from your active 'sources' list
-        prices_eur = [s["eur"] for s in sources if s.get("eur") is not None]
-
-        # 2. FILTER: Clean outliers based on the GPT estimate if available
-        gpt_estimate = gpt_result.get("current_value")
-        filtered_prices = filter_outliers(prices_eur, gpt_estimate)
-        # 3. SANITIZE: Remove any 'None' entries dropped by filter_outliers
-        clean_prices = [p for p in filtered_prices if p is not None]
-
-        # 4. SAFE COMPUTE: Make sure we have numbers left before calling min/max
-        if clean_prices:
-            gpt_result["price_range"] = {
-                "min": min(clean_prices),
-                "max": max(clean_prices)
-            }
-        else:
-            # Fallback if everything got dropped by the outlier filter
-            gpt_result["price_range"] = {
-                "min": gpt_estimate * 0.8 if gpt_estimate else 0,
-                "max": gpt_estimate * 1.2 if gpt_estimate else 0
-            }
 
     # Step 3 — price history
     current_value = gpt_result.get("current_value", resale_price)
