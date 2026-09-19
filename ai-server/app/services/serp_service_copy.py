@@ -256,22 +256,64 @@ def extract_price(text) -> float | None:
 
 
 BLOCKED_DOMAINS = [
-    "youtube.com", "youtu.be", "googlevideo.com",
-    "instagram.com", "lookaside.instagram.com", "pinterest.com",
-    "tiktok.com", "facebook.com", "twitter.com", "x.com", "reddit.com",
-    "serpapi.com", "serper.dev",
-    "wikimedia.org", "wikipedia.org",
-    "blogspot.com", "wordpress.com", "tumblr.com", "medium.com",
+    # Video & Social Media
+    "youtube.com", "youtu.be", "googlevideo.com", "vimeo.com", "dailymotion.com",
+    "instagram.com", "lookaside.instagram.com", "pinterest.com", "pinterest.fr", "pinterest.co.uk",
+    "tiktok.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "snapchat.com",
+
+    # Informational, Encyclopedia, Wiki & Q&A
+    "wikipedia.org", "wikimedia.org", "wiktionary.org", "wikihow.com", "wikidata.org",
+    "reddit.com", "quora.com", "stackexchange.com", "stackoverflow.com",
+
+    # Blogs, Forums & News Outlets
+    "purseblog.com", "forum.purseblog.com", "blogspot.com", "wordpress.com",
+    "tumblr.com", "medium.com", "substack.com", "vogue.com", "elle.com",
+    "bazaar.com", "harpersbazaar.com", "gq.com", "nytimes.com", "forbes.com",
+    "businessoffashion.com", "fashionista.com", "glamour.com",
+
+    # Low-end / Mass-market / Generic Marketplaces & Fakes
     "aliexpress.com", "dhgate.com", "shein.com", "temu.com", "wish.com",
-    "amazon.com", "walmart.com", "target.com",
-    "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay",
+    "amazon.com", "amazon.co.uk", "amazon.de", "amazon.fr", "amazon.it", "amazon.es", "amazon.co.jp",
+    "walmart.com", "target.com", "etsy.com", "overstock.com",
+    "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay.com.au", "ebay",
+
+    # General Search Engines & API Platforms
+    "google.com", "google.it", "google.fr", "google.de", "google.co.uk", "google.es",
+    "bing.com", "yahoo.com", "duckduckgo.com", "serpapi.com", "serper.dev"
 ]
 
 BLOCKED_KEYWORDS_IN_SOURCE = [
-    "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter",
-    "reddit", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
-    "wikipedia", "blogspot", "wordpress"
+    "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter", "x.com",
+    "reddit", "quora", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
+    "shein", "temu", "wish", "etsy", "wikipedia", "wikimedia", "wikihow",
+    "blogspot", "wordpress", "tumblr", "medium", "purseblog", "vogue", "elle",
+    "google", "bing", "yahoo"
 ]
+
+DOMAIN_DISPLAY_NAMES = {
+    "madisonavenuecouture.com": "Madison Avenue Couture",
+    "janefinds.com": "JaneFinds",
+    "fashionphile.com": "Fashionphile",
+    "therealreal.com": "The RealReal",
+    "rebag.com": "Rebag",
+    "vestiairecollective.com": "Vestiaire Collective",
+    "sothebys.com": "Sotheby's",
+    "1stdibs.com": "1stDibs",
+    "collector-square.com": "Collector Square",
+    "loveluxury.co.uk": "Love Luxury",
+    "loveluxury.ae": "Love Luxury",
+    "saclab.co": "Saclab",
+    "saclab.com": "Saclab",
+    "stockx.com": "StockX",
+    "komehyo.jp": "Komehyo",
+    "yoogiscloset.com": "Yoogi's Closet",
+    "priveporter.com": "Privé Porter",
+    "baghunter.com": "Baghunter",
+    "ginza-xiaoma.com": "Ginza Xiaoma",
+    "brandoff.jp": "Brand Off",
+    "farfetch.com": "Farfetch",
+    "sellierknightsbridge.com": "Sellier Knightsbridge"
+}
 
 
 def is_clean_url(url: str) -> bool:
