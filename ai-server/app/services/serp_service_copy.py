@@ -210,35 +210,67 @@ def extract_price(text) -> float | None:
     if not text:
         return None
     if isinstance(text, (int, float)):
-        return float(text) if float(text) > 100 else None
+        val = float(text)
+        return val if val >= 250 else None
+
     text_str = str(text)
-    match = re.search(
-        r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text_str)
-    if match:
+
+    # 1. Extract all currency-prefixed numbers from the text
+    matches = re.findall(
+        r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text_str)
+
+    candidates = []
+    for symbol, num_str in matches:
         try:
-            return float(match.group(1).replace(",", ""))
-        except:
+            clean_num = float(num_str.replace(",", ""))
+            eur_val = to_eur(clean_num, symbol)
+            # Filter out shipping fees, tax notes, small accessory charges (< €250)
+            if eur_val >= 250:
+                candidates.append((clean_num, eur_val))
+        except Exception:
             pass
-    # Fallback to pure numeric extraction
-    match_num = re.search(r'\b([\d]{1,3}(?:,\d{3})+|\d{3,6})(?:\.\d{1,2})?\b', text_str)
-    if match_num:
+
+    if candidates:
+        # In a luxury bag listing snippet, main item price is higher than shipping/fee noise.
+        # Pick candidate with highest EUR value.
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0][0]
+
+    # 2. Fallback to pure numeric extraction if currency symbol is missing
+    match_num = re.finditer(
+        r'\b([\d]{1,3}(?:,\d{3})+|\d{4,6})(?:\.\d{1,2})?\b', text_str)
+    num_candidates = []
+    for m in match_num:
         try:
-            val = float(match_num.group(1).replace(",", ""))
-            if val >= 200:
-                return val
-        except:
+            val = float(m.group(1).replace(",", ""))
+            if val >= 400:
+                num_candidates.append(val)
+        except Exception:
             pass
+
+    if num_candidates:
+        num_candidates.sort(reverse=True)
+        return num_candidates[0]
+
     return None
 
 
 BLOCKED_DOMAINS = [
+    "youtube.com", "youtu.be", "googlevideo.com",
     "instagram.com", "lookaside.instagram.com", "pinterest.com",
-    "tiktok.com", "facebook.com", "twitter.com", "reddit.com",
-    "serpapi.com",
+    "tiktok.com", "facebook.com", "twitter.com", "x.com", "reddit.com",
+    "serpapi.com", "serper.dev",
     "wikimedia.org", "wikipedia.org",
-    "blogspot.com", "wordpress.com",
-    "aliexpress.com", "dhgate.com",
+    "blogspot.com", "wordpress.com", "tumblr.com", "medium.com",
+    "aliexpress.com", "dhgate.com", "shein.com", "temu.com", "wish.com",
+    "amazon.com", "walmart.com", "target.com",
     "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay",
+]
+
+BLOCKED_KEYWORDS_IN_SOURCE = [
+    "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter",
+    "reddit", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
+    "wikipedia", "blogspot", "wordpress"
 ]
 
 
@@ -249,7 +281,7 @@ def is_clean_url(url: str) -> bool:
 def is_blocked_source(url: str = "", source: str = "") -> bool:
     url_l = (url or "").lower()
     src_l = (source or "").lower()
-    if "ebay" in url_l or "ebay" in src_l:
+    if any(b in src_l for b in BLOCKED_KEYWORDS_IN_SOURCE):
         return True
     return any(blocked in url_l for blocked in BLOCKED_DOMAINS)
 
@@ -631,22 +663,38 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
 
     valid_priced_items = []
     for item in priced_sources:
+        raw_u = item.get("url", "")
+        clean_url = unwrap_merchant_url(raw_u)
+        src_name = item.get("source", "")
+        if is_blocked_source(clean_url, src_name):
+            continue
         price = extract_price(item["price_raw"])
-        if price and price >= 200:
+        if price and price >= 250:
             symbol = detect_currency_symbol(item["price_raw"])
             eur = to_eur(price, symbol)
-            raw_u = item.get("url", "")
-            clean_url = unwrap_merchant_url(raw_u)
-            valid_priced_items.append({
-                "eur": eur,
-                "original": price,
-                "currency": symbol,
-                "source": item["source"],
-                "url": clean_url,
-                "title": item["title"],
-                "country": item.get("country") or get_country(item["source"]),
-                "condition": "On website"
-            })
+            if eur >= 250:
+                valid_priced_items.append({
+                    "eur": eur,
+                    "original": price,
+                    "currency": symbol,
+                    "source": src_name,
+                    "url": clean_url,
+                    "title": item["title"],
+                    "country": item.get("country") or get_country(src_name),
+                    "condition": "On website"
+                })
+
+    # Statistical outlier removal: Discard price points < 35% or > 300% of median price
+    if len(valid_priced_items) >= 2:
+        sorted_eurs = sorted(p["eur"] for p in valid_priced_items)
+        median_p = sorted_eurs[len(sorted_eurs) // 2]
+        if median_p >= 800:
+            min_cutoff = median_p * 0.35
+            max_cutoff = median_p * 3.0
+            valid_priced_items = [
+                p for p in valid_priced_items
+                if min_cutoff <= p["eur"] <= max_cutoff
+            ]
 
     # Deduplicate smartly without collapsing Google Shopping or reseller listings into a single URL
     def get_dedup_key(p: dict) -> str:

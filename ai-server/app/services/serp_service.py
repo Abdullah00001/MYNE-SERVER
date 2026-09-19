@@ -17,20 +17,52 @@ SERP_HEADERS = {
 
 
 def extract_price(text) -> float | None:
-    """Only extract a number if it's directly attached to a currency symbol."""
     if not text:
         return None
-    # Handle if Serper returns a number directly
     if isinstance(text, (int, float)):
-        return float(text)
-    match = re.search(
-        r'[\$£€¥]\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text)
-    if not match:
-        return None
-    try:
-        return float(match.group(1).replace(",", ""))
-    except Exception:
-        return None
+        val = float(text)
+        return val if val >= 250 else None
+
+    text_str = str(text)
+
+    # 1. Extract all currency-prefixed numbers from the text
+    matches = re.findall(
+        r'([\$£€¥])\s*([\d]{1,3}(?:[,.][\d]{3})*(?:\.\d{1,2})?)', text_str)
+
+    candidates = []
+    for symbol, num_str in matches:
+        try:
+            clean_num = float(num_str.replace(",", ""))
+            eur_val = to_eur(clean_num, symbol)
+            # Filter out shipping fees, tax notes, small accessory charges (< €250)
+            if eur_val >= 250:
+                candidates.append((clean_num, eur_val))
+        except Exception:
+            pass
+
+    if candidates:
+        # In a luxury bag listing snippet, main item price is higher than shipping/fee noise.
+        # Pick candidate with highest EUR value.
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0][0]
+
+    # 2. Fallback to pure numeric extraction if currency symbol is missing
+    match_num = re.finditer(
+        r'\b([\d]{1,3}(?:,\d{3})+|\d{4,6})(?:\.\d{1,2})?\b', text_str)
+    num_candidates = []
+    for m in match_num:
+        try:
+            val = float(m.group(1).replace(",", ""))
+            if val >= 400:
+                num_candidates.append(val)
+        except Exception:
+            pass
+
+    if num_candidates:
+        num_candidates.sort(reverse=True)
+        return num_candidates[0]
+
+    return None
 
 
 def detect_currency_symbol(text) -> str:
@@ -640,17 +672,34 @@ LUXURY_SITES_SECONDARY = (
 )
 
 BLOCKED_DOMAINS = [
+    "youtube.com", "youtu.be", "googlevideo.com",
     "instagram.com", "lookaside.instagram.com", "pinterest.com",
-    "tiktok.com", "facebook.com", "twitter.com", "reddit.com",
-    "serpapi.com",
-    "wikimedia.org", "wikipedia.org",  # encyclopedia images
-    "blogspot.com", "wordpress.com",   # blogs
-    "aliexpress.com", "dhgate.com",    # fakes
+    "tiktok.com", "facebook.com", "twitter.com", "x.com", "reddit.com",
+    "serpapi.com", "serper.dev",
+    "wikimedia.org", "wikipedia.org",
+    "blogspot.com", "wordpress.com", "tumblr.com", "medium.com",
+    "aliexpress.com", "dhgate.com", "shein.com", "temu.com", "wish.com",
+    "amazon.com", "walmart.com", "target.com",
+    "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay",
+]
+
+BLOCKED_KEYWORDS_IN_SOURCE = [
+    "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter",
+    "reddit", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
+    "wikipedia", "blogspot", "wordpress"
 ]
 
 
 def is_clean_url(url: str) -> bool:
-    return url and not any(blocked in url for blocked in BLOCKED_DOMAINS)
+    return url and not any(blocked in url.lower() for blocked in BLOCKED_DOMAINS)
+
+
+def is_blocked_source(url: str = "", source: str = "") -> bool:
+    url_l = (url or "").lower()
+    src_l = (source or "").lower()
+    if any(b in src_l for b in BLOCKED_KEYWORDS_IN_SOURCE):
+        return True
+    return any(blocked in url_l for blocked in BLOCKED_DOMAINS)
 
 
 def sanitize_image_query(query: str) -> str:
