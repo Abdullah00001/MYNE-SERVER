@@ -32,7 +32,7 @@ export class DashboardService {
           UserCollection.countDocuments({ isAdmin: false }),
 
           // 3. Total Cost & Current Value (median of min+max per bag, summed)
-          // Median = (currentMinValue + currentMaxValue) / 2
+          // 3. Total Cost & Current Value (uses priceStatus.currentValue, falls back to min+max median)
           UserCollection.aggregate([
             { $match: { isAdmin: false } },
             {
@@ -41,40 +41,51 @@ export class DashboardService {
                 totalCost: { $sum: { $ifNull: ['$purchasePrice', 0] } },
                 totalCurrentValue: {
                   $sum: {
-                    $cond: {
-                      if: {
-                        $and: [
-                          {
-                            $gt: [
+                    $ifNull: [
+                      '$priceStatus.currentValue',
+                      {
+                        $cond: {
+                          if: {
+                            $and: [
                               {
-                                $ifNull: ['$priceStatus.currentMinValue', null],
+                                $gt: [
+                                  {
+                                    $ifNull: [
+                                      '$priceStatus.currentMinValue',
+                                      null,
+                                    ],
+                                  },
+                                  null,
+                                ],
                               },
-                              null,
-                            ],
-                          },
-                          {
-                            $gt: [
                               {
-                                $ifNull: ['$priceStatus.currentMaxValue', null],
+                                $gt: [
+                                  {
+                                    $ifNull: [
+                                      '$priceStatus.currentMaxValue',
+                                      null,
+                                    ],
+                                  },
+                                  null,
+                                ],
                               },
-                              null,
                             ],
                           },
-                        ],
-                      },
-                      then: {
-                        $divide: [
-                          {
-                            $add: [
-                              '$priceStatus.currentMinValue',
-                              '$priceStatus.currentMaxValue',
+                          then: {
+                            $divide: [
+                              {
+                                $add: [
+                                  '$priceStatus.currentMinValue',
+                                  '$priceStatus.currentMaxValue',
+                                ],
+                              },
+                              2,
                             ],
                           },
-                          2,
-                        ],
+                          else: 0,
+                        },
                       },
-                      else: 0,
-                    },
+                    ],
                   },
                 },
               },
@@ -136,40 +147,51 @@ export class DashboardService {
                 // Sum of medians: (min + max) / 2 per bag
                 currentValue: {
                   $sum: {
-                    $cond: {
-                      if: {
-                        $and: [
-                          {
-                            $gt: [
+                    $ifNull: [
+                      '$priceStatus.currentValue',
+                      {
+                        $cond: {
+                          if: {
+                            $and: [
                               {
-                                $ifNull: ['$priceStatus.currentMinValue', null],
+                                $gt: [
+                                  {
+                                    $ifNull: [
+                                      '$priceStatus.currentMinValue',
+                                      null,
+                                    ],
+                                  },
+                                  null,
+                                ],
                               },
-                              null,
-                            ],
-                          },
-                          {
-                            $gt: [
                               {
-                                $ifNull: ['$priceStatus.currentMaxValue', null],
+                                $gt: [
+                                  {
+                                    $ifNull: [
+                                      '$priceStatus.currentMaxValue',
+                                      null,
+                                    ],
+                                  },
+                                  null,
+                                ],
                               },
-                              null,
                             ],
                           },
-                        ],
-                      },
-                      then: {
-                        $divide: [
-                          {
-                            $add: [
-                              '$priceStatus.currentMinValue',
-                              '$priceStatus.currentMaxValue',
+                          then: {
+                            $divide: [
+                              {
+                                $add: [
+                                  '$priceStatus.currentMinValue',
+                                  '$priceStatus.currentMaxValue',
+                                ],
+                              },
+                              2,
                             ],
                           },
-                          2,
-                        ],
+                          else: 0,
+                        },
                       },
-                      else: 0,
-                    },
+                    ],
                   },
                 },
               },
@@ -327,36 +349,51 @@ export class DashboardService {
             totalPurchasePrice: { $sum: { $ifNull: ['$purchasePrice', 0] } },
             totalCurrentPrice: {
               $sum: {
-                $cond: {
-                  if: {
-                    $and: [
-                      {
-                        $gt: [
-                          { $ifNull: ['$priceStatus.currentMinValue', null] },
-                          null,
+                $ifNull: [
+                  '$priceStatus.currentValue',
+                  {
+                    $cond: {
+                      if: {
+                        $and: [
+                          {
+                            $gt: [
+                              {
+                                $ifNull: [
+                                  '$priceStatus.currentMinValue',
+                                  null,
+                                ],
+                              },
+                              null,
+                            ],
+                          },
+                          {
+                            $gt: [
+                              {
+                                $ifNull: [
+                                  '$priceStatus.currentMaxValue',
+                                  null,
+                                ],
+                              },
+                              null,
+                            ],
+                          },
                         ],
                       },
-                      {
-                        $gt: [
-                          { $ifNull: ['$priceStatus.currentMaxValue', null] },
-                          null,
+                      then: {
+                        $divide: [
+                          {
+                            $add: [
+                              '$priceStatus.currentMinValue',
+                              '$priceStatus.currentMaxValue',
+                            ],
+                          },
+                          2,
                         ],
                       },
-                    ],
+                      else: 0,
+                    },
                   },
-                  then: {
-                    $divide: [
-                      {
-                        $add: [
-                          '$priceStatus.currentMinValue',
-                          '$priceStatus.currentMaxValue',
-                        ],
-                      },
-                      2,
-                    ],
-                  },
-                  else: 0,
-                },
+                ],
               },
             },
             avgChangePercentage: {

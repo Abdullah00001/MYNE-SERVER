@@ -560,24 +560,35 @@ async def identify_bag(url: str) -> List[Dict[str, Any]]:
             match["imageUrl"] = image_urls[i]
             match["thumbnailUrl"] = image_urls[i]
 
-    # Calculate valuation for rank 1 from Lens prices if present
-    if validated and lens_data.get("prices"):
-        valid_eurs = []
-        for raw in lens_data["prices"]:
-            if not raw:
-                continue
-            price = extract_price(raw)
-            if price:
-                symbol = detect_currency_symbol(raw)
-                eur = to_eur(price, symbol)
-                if eur > 100:
-                    valid_eurs.append(eur)
-        if valid_eurs:
-            valid_eurs.sort()
-            if len(valid_eurs) > 3:
-                valid_eurs = valid_eurs[1:-1]
-            median_eur = valid_eurs[len(valid_eurs) // 2]
-            validated[0]["estimatedValueEUR"] = int(median_eur)
+    # Calculate live market valuation for rank 1 suggestion so AI Suggestions matches Bag Details valuation
+    if validated:
+        try:
+            from app.services.serp_service_copy import fetch_prices_from_image
+            rank1 = validated[0]
+            query_parts = [rank1.get('brand', ''), rank1.get('model', ''), rank1.get('size', ''), rank1.get('material', ''), rank1.get('color', '')]
+            query_str = " ".join([p for p in query_parts if p]).strip()
+            price_res = await fetch_prices_from_image(image_urls[0] if image_urls else "", query_str)
+            if price_res and price_res.get("resale_price"):
+                validated[0]["estimatedValueEUR"] = int(price_res["resale_price"])
+            elif lens_data.get("prices"):
+                valid_eurs = []
+                for raw in lens_data["prices"]:
+                    if not raw:
+                        continue
+                    price = extract_price(raw)
+                    if price:
+                        symbol = detect_currency_symbol(raw)
+                        eur = to_eur(price, symbol)
+                        if eur > 100:
+                            valid_eurs.append(eur)
+                if valid_eurs:
+                    valid_eurs.sort()
+                    if len(valid_eurs) > 3:
+                        valid_eurs = valid_eurs[1:-1]
+                    median_eur = valid_eurs[len(valid_eurs) // 2]
+                    validated[0]["estimatedValueEUR"] = int(median_eur)
+        except Exception as e:
+            logger.warning(f"[identify_bag] Live market price sync error: {e}")
 
     # Ensure every single match (ranks 1-4) has a valid image URL (no placeholders!)
     from app.services.serp_service import fetch_bag_image, is_clean_url

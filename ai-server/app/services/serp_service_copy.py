@@ -1,13 +1,34 @@
 import re
 import httpx
 import asyncio
+from urllib.parse import parse_qs, urlparse, unquote
 from app.config import OPENAI_API_KEY, SERP_API_KEY, SERPER_API_KEY
 
 import logging
 logger = logging.getLogger(__name__)
 
+
+def unwrap_merchant_url(url: str) -> str:
+    if not url:
+        return ""
+    url_str = str(url).strip()
+    if "google.com/url" in url_str or "google.com/aclk" in url_str or "serpapi.com/link" in url_str:
+        try:
+            parsed = urlparse(url_str)
+            qs = parse_qs(parsed.query)
+            if "q" in qs and qs["q"]:
+                return unquote(qs["q"][0])
+            if "url" in qs and qs["url"]:
+                return unquote(qs["url"][0])
+            if "adurl" in qs and qs["adurl"]:
+                return unquote(qs["adurl"][0])
+        except Exception:
+            pass
+    return url_str
+
 PRIORITY_SITES = [
     "madisonavenuecouture.com",
+    "janefinds.com",
     "vestiairecollective.com",
     "therealreal.com",
     "sothebys.com",
@@ -17,20 +38,27 @@ PRIORITY_SITES = [
     "collector-square.com",
     "loveluxury.co.uk",
     "loveluxury.ae",
+    "saclab.co",
     "saclab.com",
     "stockx.com",
     "komehyo.jp",
     "yoogiscloset.com",
-    "portero.com",
+    "priveporter.com",
+    "baghunter.com",
+    "ginza-xiaoma.com",
+    "brandoff.jp",
     "designerexchange.co.uk",
+    "sellierknightsbridge.com",
+    "farfetch.com",
 ]
 
 PRIORITY_KEYWORDS = [
-    "madisonavenuecouture", "vestiaire", "therealreal", "sothebys",
+    "madisonavenuecouture", "janefinds", "vestiaire", "therealreal", "sothebys",
     "fashionphile", "loveluxury", "1stdibs", "rebag", "collector-square",
-    "collectorsquare", "saclab", "stockx", "komehyo", "yoogi", "portero",
-    "designerexchange", "videdressing", "hardlyeverwornit", "christies",
-    "catawiki", "jamesedition"
+    "collectorsquare", "saclab", "stockx", "komehyo", "yoogi", "priveporter",
+    "baghunter", "ginza", "xiaoma", "brandoff", "designerexchange",
+    "videdressing", "hardlyeverwornit", "christies", "catawiki", "jamesedition",
+    "farfetch", "sellier"
 ]
 
 
@@ -607,23 +635,36 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
         if price and price >= 200:
             symbol = detect_currency_symbol(item["price_raw"])
             eur = to_eur(price, symbol)
+            raw_u = item.get("url", "")
+            clean_url = unwrap_merchant_url(raw_u)
             valid_priced_items.append({
                 "eur": eur,
                 "original": price,
                 "currency": symbol,
                 "source": item["source"],
-                "url": item["url"],
+                "url": clean_url,
                 "title": item["title"],
-                "country": item.get("country", "Global"),
+                "country": item.get("country") or get_country(item["source"]),
                 "condition": "On website"
             })
 
-    # Deduplicate by unique listing URL
+    # Deduplicate smartly without collapsing Google Shopping or reseller listings into a single URL
+    def get_dedup_key(p: dict) -> str:
+        raw_url = (p.get("url") or "").lower().rstrip("/")
+        if "google.com" in raw_url or "serpapi.com" in raw_url:
+            src = (p.get("source") or "").lower()
+            ttl = (p.get("title") or "").lower()
+            eur = round(p.get("eur", 0))
+            return f"google_{src}_{ttl}_{eur}"
+        # Keep query parameters if they specify product/variant ID
+        clean = re.sub(r'([?&])(utm_[^&]+|gclid=[^&]+|ref=[^&]+|fbclid=[^&]+)', '', raw_url).rstrip("?&")
+        return clean
+
     seen = {}
     for p in valid_priced_items:
-        url_key = p["url"].split("?")[0].rstrip("/").lower()
-        if url_key not in seen:
-            seen[url_key] = p
+        key = get_dedup_key(p)
+        if key not in seen:
+            seen[key] = p
     prices = list(seen.values())
 
     # Separate priority reseller listings from general listings
