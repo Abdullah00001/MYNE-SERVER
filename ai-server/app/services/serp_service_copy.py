@@ -365,19 +365,22 @@ async def ai_filter_priced_sources(priced_sources: list, first_title: str) -> tu
     if not priced_sources:
         return [], []
 
+    core_target = sanitize_search_query(first_title)
+
     items = [f"{i}: {p['title']} ({p['url']}) — {p['price_raw']}" for i,
              p in enumerate(priced_sources)]
     items_text = "\n".join(items)
 
-    prompt = f"""You are a luxury bag expert evaluating market listings for the target bag: "{first_title}"
+    prompt = f"""You are a luxury bag valuation expert evaluating market listings for the target bag: "{core_target}" (full details: "{first_title}").
 
-Below are search results with titles, URLs, and prices:
+Below are candidate search results with titles, URLs, and prices:
 {items_text}
 
 Instructions:
-1. Return ONLY the numbers of listings that are ACTUAL HANDBAGS matching the brand and model family of "{first_title}".
-2. REJECT any listing that is an accessory, strap, charm, wallet, cardholder, pouch, dust bag, box, shoe, or unrelated item.
-3. REJECT any listing that is a completely different brand or unrelated bag model.
+1. Return ONLY the numbers of listings that are ACTUAL HANDBAGS belonging to the brand and model family of "{core_target}".
+2. DO NOT reject a handbag listing just because the color, leather type, or hardware differs, as long as it is the same brand and bag model family (e.g., Hermès Kelly Mini II, Gucci Ophidia Small, Chanel Classic Flap).
+3. REJECT any listing that is an accessory, strap, charm, wallet, cardholder, pouch, dust bag, box, shoe, or unrelated item.
+4. REJECT any listing that is a completely different brand or completely different bag model.
 
 Reply with only comma-separated numbers (e.g. 0,2,4). If none match, reply "none"."""
 
@@ -392,7 +395,7 @@ Reply with only comma-separated numbers (e.g. 0,2,4). If none match, reply "none
                       "max_tokens": 100}
             )
             result = res.json()["choices"][0]["message"]["content"].strip()
-            print(f"[ai_filter] target: '{first_title}' | kept: {result}")
+            print(f"[ai_filter] target: '{core_target}' | kept: {result}")
 
             if result.lower() == "none":
                 return [], priced_sources
@@ -491,7 +494,7 @@ def sanitize_search_query(query: str) -> str:
 
 
 async def search_priority_sites(query: str) -> list[dict]:
-    """Search PRIORITY_SITES directly via Google using multi-tier bag queries."""
+    """Search PRIORITY_SITES directly via Google organic search with Serper.dev fallback."""
     if not query:
         return []
     clean_q = sanitize_search_query(query)
@@ -508,39 +511,75 @@ async def search_priority_sites(query: str) -> list[dict]:
 
     async with httpx.AsyncClient(timeout=10) as client:
         for q in queries_to_try:
-            try:
-                res = await client.get(
-                    "https://serpapi.com/search",
-                    params={
-                        "engine": "google",
-                        "q": f"({site_filter}) {q}",
-                        "api_key": SERP_API_KEY,
-                        "num": 15,
-                    }
-                )
-                if res.status_code == 200:
-                    for r in res.json().get("organic_results", []):
-                        link = r.get("link", "")
-                        if not link or link in seen_links or is_blocked_source(link, r.get("title", "")):
-                            continue
-                        snippet = r.get("snippet", "") + " " + r.get("title", "")
-                        price = extract_price(snippet)
-                        domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
-                        domain_str = domain.group(1) if domain else "unknown"
-                        if price and price >= 200:
-                            seen_links.add(link)
-                            results.append({
-                                "title": r.get("title", ""),
-                                "price_raw": snippet,
-                                "url": link,
-                                "source": domain_str,
-                                "country": get_country(domain_str),
-                                "condition_raw": "On website"
-                            })
-                if len(results) >= 6:
-                    break
-            except Exception as e:
-                logger.warning(f"[priority_sites] Failed for '{q}': {e}")
+            # 1. Try Serper Organic Search first if available (bypasses SerpAPI 429 rate limit)
+            if SERPER_API_KEY:
+                try:
+                    serper_res = await client.post(
+                        "https://google.serper.dev/search",
+                        headers={
+                            "X-API-KEY": SERPER_API_KEY,
+                            "Content-Type": "application/json"
+                        },
+                        json={"q": f"({site_filter}) {q}", "num": 15}
+                    )
+                    if serper_res.status_code == 200:
+                        for r in serper_res.json().get("organic", []):
+                            link = r.get("link", "")
+                            if not link or link in seen_links or is_blocked_source(link, r.get("title", "")):
+                                continue
+                            snippet = (r.get("snippet", "") or "") + " " + (r.get("title", "") or "")
+                            price = extract_price(snippet)
+                            domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+                            domain_str = domain.group(1) if domain else "unknown"
+                            if price and price >= 200:
+                                seen_links.add(link)
+                                results.append({
+                                    "title": r.get("title", ""),
+                                    "price_raw": snippet,
+                                    "url": link,
+                                    "source": domain_str,
+                                    "country": get_country(domain_str),
+                                    "condition_raw": "On website"
+                                })
+                except Exception as e:
+                    logger.warning(f"[priority_sites serper] Failed for '{q}': {e}")
+
+            # 2. Try SerpAPI if results < 6 and SERP_API_KEY is available
+            if len(results) < 6 and SERP_API_KEY:
+                try:
+                    res = await client.get(
+                        "https://serpapi.com/search",
+                        params={
+                            "engine": "google",
+                            "q": f"({site_filter}) {q}",
+                            "api_key": SERP_API_KEY,
+                            "num": 15,
+                        }
+                    )
+                    if res.status_code == 200:
+                        for r in res.json().get("organic_results", []):
+                            link = r.get("link", "")
+                            if not link or link in seen_links or is_blocked_source(link, r.get("title", "")):
+                                continue
+                            snippet = r.get("snippet", "") + " " + r.get("title", "")
+                            price = extract_price(snippet)
+                            domain = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', link)
+                            domain_str = domain.group(1) if domain else "unknown"
+                            if price and price >= 200:
+                                seen_links.add(link)
+                                results.append({
+                                    "title": r.get("title", ""),
+                                    "price_raw": snippet,
+                                    "url": link,
+                                    "source": domain_str,
+                                    "country": get_country(domain_str),
+                                    "condition_raw": "On website"
+                                })
+                except Exception as e:
+                    logger.warning(f"[priority_sites serpapi] Failed for '{q}': {e}")
+
+            if len(results) >= 6:
+                break
 
     logger.info(f"[priority_sites] Found {len(results)} results")
     return results

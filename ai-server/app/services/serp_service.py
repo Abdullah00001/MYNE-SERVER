@@ -339,12 +339,12 @@ async def ai_filter_titles(items: list, image_search_query: str) -> list:
     titles = [f"{i}: {item.get('title', '')}" for i, item in enumerate(items)]
     titles_text = "\n".join(titles)
 
-    prompt = f"""You are a luxury bag expert.
-Target bag: "{image_search_query}"
+    prompt = f"""You are a luxury bag valuation expert evaluating market listings for the target bag: "{image_search_query}".
 
 Below are search result titles numbered 0 to {len(items)-1}.
-Return ONLY the numbers of listings that are for the EXACT same bag (same model, size, leather, color).
-Ignore guides, articles, category pages, or different variants.
+Return ONLY the numbers of listings that are ACTUAL HANDBAGS belonging to the brand and model family of "{image_search_query}".
+DO NOT reject a handbag listing just because the color, leather type, or hardware differs, as long as it is the same brand and bag model family (e.g., Hermès Kelly Mini II, Gucci Ophidia Small, Chanel Classic Flap).
+REJECT any listing that is an accessory, strap, charm, wallet, cardholder, pouch, dust bag, box, shoe, or unrelated item.
 Reply with only comma-separated numbers, nothing else. If none match, reply with "none".
 
 Titles:
