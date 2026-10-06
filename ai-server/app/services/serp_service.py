@@ -692,18 +692,13 @@ BLOCKED_DOMAINS = [
     "amazon.com", "amazon.co.uk", "amazon.de", "amazon.fr", "amazon.it", "amazon.es", "amazon.co.jp",
     "walmart.com", "target.com", "etsy.com", "overstock.com",
     "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay.com.au", "ebay",
-
-    # General Search Engines & API Platforms
-    "google.com", "google.it", "google.fr", "google.de", "google.co.uk", "google.es",
-    "bing.com", "yahoo.com", "duckduckgo.com", "serpapi.com", "serper.dev"
 ]
 
 BLOCKED_KEYWORDS_IN_SOURCE = [
     "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter", "x.com",
     "reddit", "quora", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
     "shein", "temu", "wish", "etsy", "wikipedia", "wikimedia", "wikihow",
-    "blogspot", "wordpress", "tumblr", "medium", "purseblog", "vogue", "elle",
-    "google", "bing", "yahoo"
+    "blogspot", "wordpress", "tumblr", "medium", "purseblog", "vogue", "elle"
 ]
 
 

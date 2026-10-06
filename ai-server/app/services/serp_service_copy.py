@@ -276,18 +276,13 @@ BLOCKED_DOMAINS = [
     "amazon.com", "amazon.co.uk", "amazon.de", "amazon.fr", "amazon.it", "amazon.es", "amazon.co.jp",
     "walmart.com", "target.com", "etsy.com", "overstock.com",
     "ebay.com", "ebay.co.uk", "ebay.de", "ebay.fr", "ebay.it", "ebay.es", "ebay.com.au", "ebay",
-
-    # General Search Engines & API Platforms
-    "google.com", "google.it", "google.fr", "google.de", "google.co.uk", "google.es",
-    "bing.com", "yahoo.com", "duckduckgo.com", "serpapi.com", "serper.dev"
 ]
 
 BLOCKED_KEYWORDS_IN_SOURCE = [
     "youtube", "facebook", "instagram", "tiktok", "pinterest", "twitter", "x.com",
     "reddit", "quora", "amazon", "ebay", "walmart", "target", "dhgate", "aliexpress",
     "shein", "temu", "wish", "etsy", "wikipedia", "wikimedia", "wikihow",
-    "blogspot", "wordpress", "tumblr", "medium", "purseblog", "vogue", "elle",
-    "google", "bing", "yahoo"
+    "blogspot", "wordpress", "tumblr", "medium", "purseblog", "vogue", "elle"
 ]
 
 DOMAIN_DISPLAY_NAMES = {
@@ -314,6 +309,25 @@ DOMAIN_DISPLAY_NAMES = {
     "farfetch.com": "Farfetch",
     "sellierknightsbridge.com": "Sellier Knightsbridge"
 }
+
+
+def resolve_merchant_name(url: str, source: str = "") -> str:
+    clean_u = unwrap_merchant_url(url)
+    match = re.search(r'(?:https?://)?(?:www\.)?([^/]+)', clean_u)
+    if match:
+        domain = match.group(1).lower()
+        if domain in DOMAIN_DISPLAY_NAMES:
+            return DOMAIN_DISPLAY_NAMES[domain]
+        base = domain.split('.')[0]
+        if base and base.lower() not in ["google", "serpapi", "serper", "unknown"]:
+            return base.capitalize()
+
+    src_l = (source or "").strip()
+    if src_l and src_l.lower() not in ["google", "google shopping", "serpapi", "serper", "unknown", "reseller"]:
+        clean_key = src_l.lower().replace("www.", "")
+        return DOMAIN_DISPLAY_NAMES.get(clean_key, src_l)
+
+    return "Reseller"
 
 
 def is_clean_url(url: str) -> bool:
@@ -707,9 +721,10 @@ async def fetch_prices_from_image(image_url: str, image_search_query: str = "") 
     for item in priced_sources:
         raw_u = item.get("url", "")
         clean_url = unwrap_merchant_url(raw_u)
-        src_name = item.get("source", "")
-        if is_blocked_source(clean_url, src_name):
+        raw_src = item.get("source", "")
+        if is_blocked_source(clean_url, raw_src):
             continue
+        src_name = resolve_merchant_name(clean_url, raw_src)
         price = extract_price(item["price_raw"])
         if price and price >= 250:
             symbol = detect_currency_symbol(item["price_raw"])
