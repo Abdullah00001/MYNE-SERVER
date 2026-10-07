@@ -5,6 +5,7 @@ export const corsWhiteList = [
   'http://10.10.10.17:3003',
   'http://10.10.10.17:3000',
   'http://72.244.153.29:3003',
+  'http://10.10.28.34:3000',
 ];
 export const saltRound = 10;
 export const emailRegex = /^[\w.-]+@[a-zA-Z\d.-]+\.[a-zA-Z]{2,}$/;
