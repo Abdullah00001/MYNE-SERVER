@@ -10,8 +10,8 @@ export class CookieUtils {
   cookieOption(expiresIn: string): TCookieOptions {
     const option: TCookieOptions = {
       httpOnly: true,
-      secure: this.isProd,
-      sameSite: this.isProd ? 'none' : 'lax',
+      secure: false, // Disabled for IP-based dev testing
+      sameSite: 'lax',
       path: '/',
     };
 
@@ -23,8 +23,8 @@ export class CookieUtils {
   sharedCookieOption(): TCookieOptions {
     return {
       httpOnly: false,
-      secure: this.isProd,
-      sameSite: this.isProd ? 'none' : 'lax',
+      secure: false, // Disabled for IP-based dev testing
+      sameSite: 'lax',
       path: '/',
       maxAge: 1 * 24 * 60 * 60 * 1000,
     };
