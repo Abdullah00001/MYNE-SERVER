@@ -16,10 +16,10 @@ export class LegalService {
     description: string;
   }): Promise<ITermAndCondition> {
     try {
-      const data = await TermAndCondition.findByIdAndUpdate(
-        new Types.ObjectId('69830a30cf415936bf88788c'),
+      const data = await TermAndCondition.findOneAndUpdate(
+        {},
         { $set: { description } },
-        { new: true }
+        { new: true, upsert: true }
       );
       if (!data) {
         throw new Error(
@@ -41,10 +41,10 @@ export class LegalService {
     description: string;
   }): Promise<IPrivacyAndPolicy> {
     try {
-      const data = await PrivacyAndPolicy.findByIdAndUpdate(
-        new Types.ObjectId('69831919cf415936bf88789c'),
+      const data = await PrivacyAndPolicy.findOneAndUpdate(
+        {},
         { $set: { description } },
-        { new: true }
+        { new: true, upsert: true }
       );
       if (!data) {
         throw new Error(
@@ -62,13 +62,9 @@ export class LegalService {
 
   async getTermAndCondition(): Promise<ITermAndCondition> {
     try {
-      const data = await TermAndCondition.findById(
-        new Types.ObjectId('69830a30cf415936bf88788c')
-      );
+      let data = await TermAndCondition.findOne();
       if (!data) {
-        throw new Error(
-          'Unknown error occurred in get Term And Condition service'
-        );
+        data = await TermAndCondition.create({ description: '' });
       }
       return data;
     } catch (error) {
@@ -81,13 +77,9 @@ export class LegalService {
 
   async getPrivacyAndPolicy(): Promise<IPrivacyAndPolicy> {
     try {
-      const data = await PrivacyAndPolicy.findById(
-        new Types.ObjectId('69831919cf415936bf88789c')
-      );
+      let data = await PrivacyAndPolicy.findOne();
       if (!data) {
-        throw new Error(
-          'Unknown error occurred in get Privacy And Policy service'
-        );
+        data = await PrivacyAndPolicy.create({ description: '' });
       }
       return data;
     } catch (error) {
