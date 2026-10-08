@@ -3,7 +3,7 @@ import TMailOption from '@/types/mailOption.type';
 
 const mailOption = (to: string, subject: string, html: string): TMailOption => {
   const option: TMailOption = {
-    from: env.SMTP_USER as string,
+    from: 'no-reply@blactrium.com', // Hardcoded since SMTP_USER is a Brevo login
     to,
     subject,
     html,
