@@ -11,7 +11,7 @@ export class CookieUtils {
     const option: TCookieOptions = {
       httpOnly: true,
       secure: this.isProd,
-      sameSite: this.isProd ? 'lax' : 'lax',
+      sameSite: this.isProd ? 'none' : 'lax',
       path: '/',
     };
 
