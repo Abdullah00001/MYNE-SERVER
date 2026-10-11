@@ -6,7 +6,7 @@ from app.services.brand_config import get_official_site, get_brand_config
 
 
 SERP_HEADERS = {
-    "X-API-KEY": SERP_API_KEY,
+    "X-API-KEY": SERPER_API_KEY or SERP_API_KEY,
     "Content-Type": "application/json"
 }
 

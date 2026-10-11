@@ -269,40 +269,54 @@ RANK RULES:
 
 async def get_lens_data(url: str) -> Dict[str, Any]:
     """Use SerpAPI Google Lens with a direct image URL"""
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(
-            "https://serpapi.com/search",
-            params={
-                "engine": "google_lens",
-                "url": url,
-                "api_key": SERP_API_KEY,
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
+    if not SERP_API_KEY:
+        logger.warning("[get_lens_data] SERP_API_KEY not configured, skipping Google Lens")
+        return {
+            "titles": [],
+            "image_urls": [],
+            "prices": [],
+        }
 
-    visual_matches = data.get("visual_matches", [])
-    titles = [m.get("title", "") for m in visual_matches[:5] if m.get("title")]
-    # image_urls = [m.get("thumbnail", "")
-    #               for m in visual_matches[:4] if m.get("thumbnail")]
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(
+                "https://serpapi.com/search",
+                params={
+                    "engine": "google_lens",
+                    "url": url,
+                    "api_key": SERP_API_KEY,
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
 
-    image_urls = [
-        m.get("original") or m.get("thumbnail", "")
-        for m in visual_matches[:4]
-        if m.get("original") or m.get("thumbnail")
-    ]
+        visual_matches = data.get("visual_matches", [])
+        titles = [m.get("title", "") for m in visual_matches[:5] if m.get("title")]
 
-    prices = [m.get("price", {}).get("value", "") for m in visual_matches[:4]]
+        image_urls = [
+            m.get("original") or m.get("thumbnail", "")
+            for m in visual_matches[:4]
+            if m.get("original") or m.get("thumbnail")
+        ]
 
-    logger.info(f"Lens titles: {titles}")
-    logger.info(f"Lens image URLs: {len(image_urls)}")
-    logger.info(f"Lens prices: {prices}")
+        prices = [m.get("price", {}).get("value", "") for m in visual_matches[:4]]
 
-    return {
-        "titles": titles,
-        "image_urls": image_urls,
-        "prices": prices,
-    }
+        logger.info(f"Lens titles: {titles}")
+        logger.info(f"Lens image URLs: {len(image_urls)}")
+        logger.info(f"Lens prices: {prices}")
+
+        return {
+            "titles": titles,
+            "image_urls": image_urls,
+            "prices": prices,
+        }
+    except Exception as e:
+        logger.error(f"[get_lens_data] SerpAPI Google Lens failed ({type(e).__name__}): {e}")
+        return {
+            "titles": [],
+            "image_urls": [],
+            "prices": [],
+        }
 
 
 async def detect_brand(url: str) -> str:
@@ -324,37 +338,41 @@ Hermès, Chanel, Louis Vuitton, Dior, Gucci, Prada, Bottega Veneta,
 Saint Laurent, Celine, Loewe, Fendi, Valentino, Balenciaga, Givenchy, Burberry, Miu Miu."""
     }] + image_content
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={
-                "model": "gpt-4o-mini",
-                "max_tokens": 10,
-                "temperature": 0,
-                "messages": [{"role": "user", "content": content}]
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "max_tokens": 10,
+                    "temperature": 0,
+                    "messages": [{"role": "user", "content": content}]
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
 
-    raw = data["choices"][0]["message"]["content"].strip().lower()
+        raw = data["choices"][0]["message"]["content"].strip().lower()
 
-    # Direct match
-    if raw in BRAND_CONFIG:
-        key = get_knowledge_file(raw)
-        logger.info(f"Brand matched: {raw} -> {key}")
-        return key
-
-    # Partial match
-    for brand_name in BRAND_CONFIG:
-        if brand_name in raw or raw in brand_name:
-            key = get_knowledge_file(brand_name)
-            logger.info(f"Brand partial match: {raw} -> {key}")
+        # Direct match
+        if raw in BRAND_CONFIG:
+            key = get_knowledge_file(raw)
+            logger.info(f"Brand matched: {raw} -> {key}")
             return key
 
-    logger.warning(f"Brand not recognized: {raw}, using base knowledge only")
-    return "unknown"
+        # Partial match
+        for brand_name in BRAND_CONFIG:
+            if brand_name in raw or raw in brand_name:
+                key = get_knowledge_file(brand_name)
+                logger.info(f"Brand partial match: {raw} -> {key}")
+                return key
+
+        logger.warning(f"Brand not recognized: {raw}, using base knowledge only")
+        return "unknown"
+    except Exception as e:
+        logger.error(f"[detect_brand] Error detecting brand: {e}")
+        return "unknown"
 
 
 async def identify_bag(url: str) -> List[Dict[str, Any]]:

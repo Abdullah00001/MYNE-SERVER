@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import APIRouter, HTTPException, File, UploadFile, Request
 import base64
 import asyncio
@@ -14,7 +15,8 @@ from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from fastapi.responses import StreamingResponse
 import json
- 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -145,34 +147,42 @@ async def identify_upload_stream(
     user_id: str = "anonymous",
 ):
     async def event_stream():
-        # Step 1: identify
-        matches = await identify_bag(url)
-        if not matches:
-            yield f"data: {json.dumps({'error': 'No matches'})}\n\n"
-            return
- 
-        # Step 2: stream rank 1 immediately
-        rank1 = matches[0]
-        yield f"data: {json.dumps({'match': rank1, 'rank': 1})}\n\n"
- 
-        # Step 3: enrich ranks 2/3/4 in parallel, stream each as it finishes
-        async def enrich_and_stream(match):
-            if match.get("imageUrl") and match.get("thumbnailUrl"):
-                return match
-            query = f"{match.get('brand')} {match.get('model')}"
-            image_data = await fetch_bag_image(query)
-            return {
-                **match,
-                "imageUrl": image_data.get("imageUrl") or match.get("imageUrl", ""),
-                "thumbnailUrl": image_data.get("thumbnailUrl") or match.get("thumbnailUrl", "")
-            }
- 
-        tasks = [enrich_and_stream(m) for m in matches[1:]]
-        for coro in asyncio.as_completed(tasks):
-            enriched = await coro
-            yield f"data: {json.dumps({'match': enriched, 'rank': enriched['rank']})}\n\n"
- 
-        yield "data: {\"done\": true}\n\n"
- 
+        try:
+            # Step 1: identify
+            matches = await identify_bag(url)
+            if not matches:
+                yield f"data: {json.dumps({'error': 'No matches'})}\n\n"
+                return
+
+            # Step 2: stream rank 1 immediately
+            rank1 = matches[0]
+            yield f"data: {json.dumps({'match': rank1, 'rank': 1})}\n\n"
+
+            # Step 3: enrich ranks 2/3/4 in parallel, stream each as it finishes
+            async def enrich_and_stream(match):
+                if match.get("imageUrl") and match.get("thumbnailUrl"):
+                    return match
+                query = f"{match.get('brand')} {match.get('model')}"
+                try:
+                    image_data = await fetch_bag_image(query)
+                    return {
+                        **match,
+                        "imageUrl": image_data.get("imageUrl") or match.get("imageUrl", ""),
+                        "thumbnailUrl": image_data.get("thumbnailUrl") or match.get("thumbnailUrl", "")
+                    }
+                except Exception as err:
+                    logger.warning(f"[enrich_and_stream] Failed for '{query}': {err}")
+                    return match
+
+            tasks = [enrich_and_stream(m) for m in matches[1:]]
+            for coro in asyncio.as_completed(tasks):
+                enriched = await coro
+                yield f"data: {json.dumps({'match': enriched, 'rank': enriched['rank']})}\n\n"
+
+            yield "data: {\"done\": true}\n\n"
+        except Exception as e:
+            logger.error(f"[identify_upload_stream] Streaming error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
     return StreamingResponse(event_stream(), media_type="text/event-stream")
  
