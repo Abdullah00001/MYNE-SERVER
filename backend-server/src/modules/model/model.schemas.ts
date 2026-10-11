@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const mongoObjectIdRegex = /^[a-fA-F0-9]{24}$/;
-const modelNameRegex = /^[\p{L}0-9\s\-_.]+$/u;
+const modelNameRegex = /^[\p{L}0-9\s\-_.&']+$/u;
 
 const modelNameSchema = z
   .string({
@@ -22,7 +22,7 @@ const modelNameSchema = z
   })
   .refine((val) => modelNameRegex.test(val), {
     message:
-      'Model name contains invalid characters. Only letters, numbers, spaces, hyphens, underscores, and dots are allowed',
+      'Model name contains invalid characters. Only letters, numbers, spaces, hyphens, underscores, dots, ampersands, and apostrophes are allowed',
   })
   .refine((val) => !mongoObjectIdRegex.test(val), {
     message: 'Model name cannot be a MongoDB ObjectId',

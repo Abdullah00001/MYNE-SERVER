@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const mongoObjectIdRegex = /^[a-fA-F0-9]{24}$/;
-const brandNameRegex = /^[a-zA-Z0-9\s\-_.&']+$/;
+const brandNameRegex = /^[\p{L}0-9\s\-_.&']+$/u;
 
 const brandNameSchema = z
   .string({
